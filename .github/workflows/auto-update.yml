@@ -23,9 +23,8 @@ on:
 
 env:
   GITHUB_REGISTRY: ghcr.io
-  DOCKER_REGISTRY: docker.io
-  IMAGE_NAME: coollabsio/openclaw
-  BASE_IMAGE_NAME: coollabsio/openclaw-base
+  IMAGE_NAME: u2giants/openclaw
+  BASE_IMAGE_NAME: u2giants/openclaw-base
 
 jobs:
   check-release:
@@ -93,13 +92,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to ${{ env.DOCKER_REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Build and Push Base Image (${{ matrix.arch }})
         uses: docker/build-push-action@v6
         with:
@@ -110,7 +102,6 @@ jobs:
           build-args: |
             OPENCLAW_GIT_REF=v${{ needs.check-release.outputs.version }}
           tags: |
-            ${{ env.DOCKER_REGISTRY }}/${{ env.BASE_IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-${{ matrix.arch }}
             ${{ env.GITHUB_REGISTRY }}/${{ env.BASE_IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-${{ matrix.arch }}
           cache-from: type=gha,scope=base-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=base-${{ matrix.arch }}
@@ -132,32 +123,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to ${{ env.DOCKER_REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Create & publish base manifest on ${{ env.GITHUB_REGISTRY }}
+      - name: Create & publish base manifest
         run: |
           VERSION="${{ needs.check-release.outputs.version }}"
           BASE="${{ env.GITHUB_REGISTRY }}/${{ env.BASE_IMAGE_NAME }}"
-
-          TAGS="-t ${BASE}:${VERSION}"
-          if [ "${{ github.event.inputs.skip_latest_tag }}" != "true" ]; then
-            TAGS="$TAGS -t ${BASE}:latest"
-          fi
-
-          docker buildx imagetools create \
-            $TAGS \
-            "${BASE}:${VERSION}-amd64" \
-            "${BASE}:${VERSION}-arm64"
-
-      - name: Create & publish base manifest on ${{ env.DOCKER_REGISTRY }}
-        run: |
-          VERSION="${{ needs.check-release.outputs.version }}"
-          BASE="${{ env.DOCKER_REGISTRY }}/${{ env.BASE_IMAGE_NAME }}"
 
           TAGS="-t ${BASE}:${VERSION}"
           if [ "${{ github.event.inputs.skip_latest_tag }}" != "true" ]; then
@@ -196,13 +165,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to ${{ env.DOCKER_REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Build and Push Final Image (${{ matrix.arch }})
         uses: docker/build-push-action@v6
         with:
@@ -213,7 +175,6 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ env.GITHUB_REGISTRY }}/${{ env.BASE_IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-${{ matrix.arch }}
           tags: |
-            ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-${{ matrix.arch }}
             ${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.check-release.outputs.version }}-${{ matrix.arch }}
           cache-from: type=gha,scope=final-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=final-${{ matrix.arch }}
@@ -235,32 +196,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to ${{ env.DOCKER_REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.DOCKER_REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Create & publish final manifest on ${{ env.GITHUB_REGISTRY }}
+      - name: Create & publish final manifest
         run: |
           VERSION="${{ needs.check-release.outputs.version }}"
           IMAGE="${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}"
-
-          TAGS="-t ${IMAGE}:${VERSION}"
-          if [ "${{ github.event.inputs.skip_latest_tag }}" != "true" ]; then
-            TAGS="$TAGS -t ${IMAGE}:latest"
-          fi
-
-          docker buildx imagetools create \
-            $TAGS \
-            "${IMAGE}:${VERSION}-amd64" \
-            "${IMAGE}:${VERSION}-arm64"
-
-      - name: Create & publish final manifest on ${{ env.DOCKER_REGISTRY }}
-        run: |
-          VERSION="${{ needs.check-release.outputs.version }}"
-          IMAGE="${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}"
 
           TAGS="-t ${IMAGE}:${VERSION}"
           if [ "${{ github.event.inputs.skip_latest_tag }}" != "true" ]; then
@@ -280,5 +219,3 @@ jobs:
           echo "Successfully built and published:" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.GITHUB_REGISTRY }}/${{ env.BASE_IMAGE_NAME }}:${VERSION}\` (base)" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.GITHUB_REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}\` (final)" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.DOCKER_REGISTRY }}/${{ env.BASE_IMAGE_NAME }}:${VERSION}\` (base)" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}\` (final)" >> $GITHUB_STEP_SUMMARY
