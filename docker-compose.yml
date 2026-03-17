@@ -40,6 +40,15 @@ services:
     shm_size: 2g
     restart: unless-stopped
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - openclaw
+    restart: unless-stopped
+
 volumes:
   openclaw-data:
   browser-data:
