@@ -306,17 +306,10 @@ if [ -n "${CLAWDTALK_API_KEY:-}" ]; then
       | tar -xz --strip-components=1 -C "$CLAWDTALK_DIR"
   fi
 
-  # Write skill-config.json (uses ${VAR} syntax resolved from .env)
-  cat > "$CLAWDTALK_DIR/skill-config.json" <<'CLAWDJSON'
-{
-  "api_key": "${CLAWDTALK_API_KEY}",
-  "server": "https://clawdtalk.com"
-}
-CLAWDJSON
-
-  # Write .env so the skill can resolve ${CLAWDTALK_API_KEY}
-  printf 'CLAWDTALK_API_KEY=%s\n' "$CLAWDTALK_API_KEY" > "$STATE_DIR/.env"
-  chmod 600 "$STATE_DIR/.env"
+  # Write skill-config.json with expanded API key value
+  printf '{\n  "api_key": "%s",\n  "server": "https://clawdtalk.com"\n}\n' \
+    "$CLAWDTALK_API_KEY" > "$CLAWDTALK_DIR/skill-config.json"
+  chmod 600 "$CLAWDTALK_DIR/skill-config.json"
 
   # Install Node.js dependencies
   if [ -f "$CLAWDTALK_DIR/package.json" ] && [ ! -d "$CLAWDTALK_DIR/node_modules/ws" ]; then
