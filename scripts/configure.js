@@ -96,6 +96,9 @@ ensure(config, "gateway", "controlUi");
 if (config.gateway.controlUi.allowInsecureAuth === undefined) {
   config.gateway.controlUi.allowInsecureAuth = true;
 }
+if (config.gateway.controlUi.dangerouslyDisableDeviceAuth === undefined) {
+  config.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
+}
 if (config.gateway.controlUi.enabled === undefined) {
   config.gateway.controlUi.enabled = true;
 }
