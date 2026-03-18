@@ -375,6 +375,15 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
 
 // ── Provide explicitly valid standard models to populate the UI catalog ──
 config.agents.defaults.model.fallbacks = [
+  // User-requested unreleased/future models:
+  "google/gemini-flash-latest",
+  "google/gemini-3.1",
+  "openai/chatgpt-5-mini",
+  "openai/chatgpt-5.4",
+  "anthropic/sonnet-4.6",
+  "anthropic/haiku-4.6",
+
+  // Core stable models:
   "anthropic/claude-3-5-sonnet-20241022",
   "anthropic/claude-3-5-haiku-20241022",
   "anthropic/claude-3-opus-20240229",
