@@ -373,10 +373,19 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
   }
 }
 
-// ── Provide a explicitly valid non-hallucinated model list to satisfy schema ──
+// ── Provide explicitly valid standard models to populate the UI catalog ──
 config.agents.defaults.model.fallbacks = [
+  "anthropic/claude-3-5-sonnet-20241022",
+  "anthropic/claude-3-5-haiku-20241022",
+  "anthropic/claude-3-opus-20240229",
   "openai/gpt-4o",
-  "google/gemini-2.5-pro"
+  "openai/gpt-4o-mini",
+  "openai/o1",
+  "openai/o1-mini",
+  "openai/o3-mini",
+  "google/gemini-2.5-pro",
+  "google/gemini-2.5-flash",
+  "google/gemini-2.0-pro-exp-02-05"
 ];
 
 // ── Deepgram (audio transcription) ──────────────────────────────────────────
