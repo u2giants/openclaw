@@ -120,6 +120,44 @@ if [ -n "$INIT_SCRIPT" ]; then
   fi
 fi
 
+# ── Clear stale primary model from persisted config (before configure runs) ───
+# If the persisted openclaw.json has a primary model from a provider that is
+# no longer configured, remove it so configure.js auto-detects the right one.
+# Without this, configure.js "keeps" the stale value and the gateway restricts
+# the model picker to only that one model.
+node -e "
+  const fs = require('fs');
+  const file = process.env.OPENCLAW_STATE_DIR + '/openclaw.json';
+  try {
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const primary = config?.agents?.defaults?.model?.primary;
+    if (!primary) process.exit(0);
+    const provider = primary.split('/')[0];
+    const providerToEnv = {
+      'opencode':      ['OPENCODE_API_KEY', 'OPENCODE_ZEN_API_KEY'],
+      'github-copilot':['COPILOT_GITHUB_TOKEN'],
+      'openrouter':    ['OPENROUTER_API_KEY'],
+      'xai':           ['XAI_API_KEY'],
+      'groq':          ['GROQ_API_KEY'],
+      'mistral':       ['MISTRAL_API_KEY'],
+      'cerebras':      ['CEREBRAS_API_KEY'],
+      'zai':           ['ZAI_API_KEY'],
+      'venice':        ['VENICE_API_KEY'],
+      'moonshot':      ['MOONSHOT_API_KEY'],
+      'minimax':       ['MINIMAX_API_KEY'],
+      'synthetic':     ['SYNTHETIC_API_KEY'],
+      'xiaomi':        ['XIAOMI_API_KEY'],
+      'amazon-bedrock':['AWS_ACCESS_KEY_ID'],
+    };
+    const keys = providerToEnv[provider];
+    if (keys && !keys.some(k => process.env[k])) {
+      delete config.agents.defaults.model.primary;
+      fs.writeFileSync(file, JSON.stringify(config, null, 2));
+      console.log('[entrypoint] cleared stale primary model (unconfigured provider):', primary);
+    }
+  } catch {}
+" 2>/dev/null || true
+
 # ── Configure openclaw from env vars ─────────────────────────────────────────
 echo "[entrypoint] running configure..."
 node /app/scripts/configure.js
