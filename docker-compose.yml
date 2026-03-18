@@ -1,5 +1,6 @@
 services:
   openclaw:
+    build: .
     image: ghcr.io/u2giants/openclaw:latest
     ports:
       - "8081:8080"
