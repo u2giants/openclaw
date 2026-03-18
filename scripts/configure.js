@@ -165,20 +165,54 @@ for (const [envKey, label, providerKey] of builtinProviders) {
   if (process.env[envKey]) {
     console.log(`[configure] ${label} provider enabled (${envKey} set)`);
   }
-  // Clean up stale models.providers entries from previous env-var runs —
-  // built-in providers must NOT have models.providers entries.
-  // But don't touch entries from custom JSON.
-  if (!hasCustomConfig && config.models?.providers?.[providerKey]) {
-    console.log(`[configure] removing stale models.providers.${providerKey} (built-in, not needed)`);
-    delete config.models.providers[providerKey];
-  }
 }
-if (opencodeKey) {
-  console.log("[configure] OpenCode provider enabled (OPENCODE_API_KEY set)");
+
+// ── Explicitly Define Native Providers & Models ─────────────────────────────
+// OpenClaw 2026.3.13 deactivated internal arrays. Explicitly populate custom `models.providers`
+// to ensure endpoints correctly associate models with their native vendor endpoints instead
+// of accidentally assigning everything under `.fallbacks` to Anthropic.
+if (!config.models) config.models = {};
+if (!config.models.providers) config.models.providers = {};
+
+if (process.env.OPENAI_API_KEY) {
+  config.models.providers.openai = {
+    baseUrl: "https://api.openai.com/v1",
+    models: [
+      { id: "gpt-4o", name: "GPT-4o", input: ["text", "image"] },
+      { id: "gpt-4o-mini", name: "GPT-4o Mini", input: ["text", "image"] },
+      { id: "o1", name: "o1", input: ["text"] },
+      { id: "o1-mini", name: "o1-mini", input: ["text"] },
+      { id: "o3-mini", name: "o3-mini", input: ["text"] },
+      { id: "chatgpt-5-mini", name: "ChatGPT 5 Mini", input: ["text"] },
+      { id: "chatgpt-5.4", name: "ChatGPT 5.4", input: ["text"] }
+    ]
+  };
 }
-if (!hasCustomConfig && config.models?.providers?.opencode) {
-  console.log("[configure] removing stale models.providers.opencode (built-in, not needed)");
-  delete config.models.providers.opencode;
+
+if (process.env.ANTHROPIC_API_KEY) {
+  config.models.providers.anthropic = {
+    baseUrl: "https://api.anthropic.com/v1",
+    models: [
+      { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", input: ["text", "image"] },
+      { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", input: ["text"] },
+      { id: "claude-3-opus-20240229", name: "Claude 3 Opus", input: ["text", "image"] },
+      { id: "sonnet-4.6", name: "Sonnet 4.6", input: ["text", "image"] },
+      { id: "haiku-4.6", name: "Haiku 4.6", input: ["text"] }
+    ]
+  };
+}
+
+if (process.env.GEMINI_API_KEY) {
+  config.models.providers.google = {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    models: [
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", input: ["text", "image"] },
+      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", input: ["text", "image"] },
+      { id: "gemini-2.0-pro-exp-02-05", name: "Gemini 2.0 Pro Exp", input: ["text", "image"] },
+      { id: "gemini-flash-latest", name: "Gemini Flash Latest", input: ["text", "image"] },
+      { id: "gemini-3.1", name: "Gemini 3.1", input: ["text", "image"] }
+    ]
+  };
 }
 
 // ── Custom/proxy providers (need full models.providers config) ──────────────
