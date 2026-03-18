@@ -20,6 +20,7 @@ services:
       - BROWSER_CDP_URL=http://browser:9223
       - BROWSER_DEFAULT_PROFILE=openclaw
       - BROWSER_EVALUATE_ENABLED=true
+      - TZ=America/New_York
     volumes:
       - openclaw-data:/data
     depends_on:
@@ -31,7 +32,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Etc/UTC
+      - TZ=America/New_York
       - CHROME_CLI=--remote-debugging-port=9222
     volumes:
       - browser-data:/config
@@ -43,6 +44,7 @@ services:
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+      - TZ=America/New_York
     depends_on:
       - openclaw
     restart: unless-stopped
