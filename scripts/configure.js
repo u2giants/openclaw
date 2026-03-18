@@ -370,6 +370,13 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
   }
 }
 
+// ── Provide a explicitly valid non-hallucinated model list to satisfy schema ──
+config.agents.defaults.model.list = [
+  "anthropic/claude-3-5-sonnet-20241022",
+  "openai/gpt-4o",
+  "google/gemini-2.5-pro"
+];
+
 // ── Deepgram (audio transcription) ──────────────────────────────────────────
 if (process.env.DEEPGRAM_API_KEY) {
   console.log("[configure] configuring Deepgram transcription (from env)");
