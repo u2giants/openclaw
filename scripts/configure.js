@@ -285,8 +285,8 @@ if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
     api: "bedrock-converse-stream",
     baseUrl: `https://bedrock-runtime.${region}.amazonaws.com`,
     models: [
-      { id: "anthropic.claude-opus-4-5-20251101-v1:0", name: "Claude Opus 4.5 (Bedrock)", contextWindow: 200000 },
-      { id: "anthropic.claude-sonnet-4-5-20250929-v1:0", name: "Claude Sonnet 4.5 (Bedrock)", contextWindow: 200000 },
+      { id: "anthropic.claude-3-opus-20240229-v1:0", name: "Claude 3 Opus (Bedrock)", contextWindow: 200000 },
+      { id: "anthropic.claude-3-5-sonnet-20241022-v1:0", name: "Claude 3.5 Sonnet (Bedrock)", contextWindow: 200000 },
     ],
   };
   ensure(config, "models");
@@ -331,12 +331,12 @@ if (ollamaUrl) {
 
 // ── Primary model selection (first available provider wins) ─────────────────
 const primaryCandidates = [
-  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-opus-4-5-20251101"],
-  [process.env.OPENAI_API_KEY,         "openai/gpt-5.2"],
-  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-opus-4-5"],
-  [process.env.GEMINI_API_KEY,         "google/gemini-2.5-pro"],
-  [opencodeKey,                        "opencode/claude-opus-4-5"],
-  [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-opus-4-5"],
+  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-3-5-sonnet-20241022"],
+  [process.env.OPENAI_API_KEY,         "openai/gpt-4o"],
+  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-3-5-sonnet-20241022"],
+  [process.env.GEMINI_API_KEY,         "google/gemini-1.5-pro-latest"],
+  [opencodeKey,                        "opencode/claude-3-5-sonnet-20241022"],
+  [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-3-5-sonnet-20241022"],
   [process.env.XAI_API_KEY,            "xai/grok-3"],
   [process.env.GROQ_API_KEY,           "groq/llama-3.3-70b-versatile"],
   [process.env.MISTRAL_API_KEY,        "mistral/mistral-large-latest"],
@@ -347,9 +347,9 @@ const primaryCandidates = [
   [process.env.MINIMAX_API_KEY,        "minimax/MiniMax-M2.1"],
   [process.env.SYNTHETIC_API_KEY,      "synthetic/hf:MiniMaxAI/MiniMax-M2.1"],
   [process.env.ZAI_API_KEY,            "zai/glm-4.7"],
-  [process.env.AI_GATEWAY_API_KEY,     "vercel-ai-gateway/anthropic/claude-opus-4.5"],
+  [process.env.AI_GATEWAY_API_KEY,     "vercel-ai-gateway/anthropic/claude-3-5-sonnet-20241022"],
   [process.env.XIAOMI_API_KEY,         "xiaomi/mimo-v2-flash"],
-  [process.env.AWS_ACCESS_KEY_ID,      "amazon-bedrock/anthropic.claude-opus-4-5-20251101-v1:0"],
+  [process.env.AWS_ACCESS_KEY_ID,      "amazon-bedrock/anthropic.claude-3-5-sonnet-20241022-v1:0"],
   [ollamaUrl,                          "ollama/llama3.3"],
 ];
 if (process.env.OPENCLAW_PRIMARY_MODEL) {
