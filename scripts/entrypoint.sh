@@ -395,6 +395,10 @@ fi
 
 # ── Start openclaw gateway ───────────────────────────────────────────────────
 echo "[entrypoint] starting openclaw gateway on port $GATEWAY_PORT..."
+echo "[entrypoint] openclaw config:"
+cat "$STATE_DIR/openclaw.json" 2>/dev/null || echo "[entrypoint] no config found"
+echo "[entrypoint] openclaw version:"
+openclaw --version 2>&1 || true
 
 # cwd must be the app root so the gateway finds dist/control-ui/ assets
 # "gateway run" = foreground mode; all config comes from openclaw.json
