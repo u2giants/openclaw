@@ -126,9 +126,8 @@ node /app/scripts/configure.js
 chmod 600 "$STATE_DIR/openclaw.json"
 
 # ── Auto-fix doctor suggestions (e.g. enable configured channels) ─────────
-echo "[entrypoint] running openclaw doctor --fix..."
-cd /opt/openclaw/app
-openclaw doctor --fix 2>&1 || true
+# Removed 'openclaw doctor --fix' because it infinite-loops on invalid schema
+echo "[entrypoint] skipping doctor --fix to avoid infinite loop bug"
 
 # ── Read hooks path from generated config (if hooks enabled) ─────────────────
 HOOKS_PATH=""
