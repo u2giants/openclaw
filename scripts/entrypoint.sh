@@ -144,11 +144,7 @@ fi
 
 
 # ── Configure openclaw from env vars ─────────────────────────────────────────
-# Clear persisted openclaw.json on each startup to prevent version-mismatch
-# crashes when the base image version changes. All config is reconstructed
-# from env vars by configure.js + openclaw doctor --fix, so nothing is lost.
-echo "[entrypoint] clearing persisted openclaw.json (rebuilt from env vars)"
-rm -f "$STATE_DIR/openclaw.json" 2>/dev/null || true
+# (Removed destructive rm -f openclaw.json hook to preserve UI configuration state)
 
 echo "[entrypoint] running configure..."
 node /app/scripts/configure.js
@@ -465,7 +461,7 @@ while true; do
       echo "[entrypoint] repeated fast crashes — waiting 30s, then rebuilding config from scratch..."
       sleep 30
       node /app/scripts/configure.js 2>&1 || true
-      openclaw doctor --fix 2>&1 || true
+      # (Removed infinite looping 'openclaw doctor --fix' command)
       fast_crashes=0
     fi
   else
