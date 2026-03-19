@@ -366,25 +366,126 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
   }
 }
 
-// ── Provide explicitly valid standard models to populate the UI catalog ──
-// IMPORTANT: Only include models that actually exist in the provider APIs.
-// Fake/unreleased model IDs cause "model not allowed" errors because the
-// gateway can't find them in any registered provider catalog.
-config.agents.defaults.model.fallbacks = [
-  // Anthropic (confirmed working)
-  "anthropic/claude-3-5-sonnet-20241022",
-  "anthropic/claude-3-opus-20240229",
-  "anthropic/claude-3-haiku-20240307",
-  // OpenAI (confirmed working)
-  "openai/gpt-4o",
-  "openai/gpt-4o-mini",
-  "openai/o1",
-  "openai/o3-mini",
-  // Google (confirmed working)
-  "google/gemini-2.5-pro",
-  "google/gemini-2.5-flash",
-  "google/gemini-2.0-flash-exp",
+// ── Model catalog ────────────────────────────────────────────────────────────
+// These are the model IDs exactly as each provider's API expects them.
+// Last verified: 2026-03. Update when Anthropic/OpenAI/Google retire models.
+const MODEL_CATALOG = [
+  // ── Anthropic ──────────────────────────────────────────────────────────────
+  // Claude 3.5/3 retired Feb 2026. Current lineup is Claude 4.x:
+  { id: "anthropic/claude-opus-4-5-20251101",     label: "Claude Opus 4.5"        },
+  { id: "anthropic/claude-sonnet-4-5-20250929",   label: "Claude Sonnet 4.5"      },
+  { id: "anthropic/claude-haiku-4-5-20251001",    label: "Claude Haiku 4.5"       },
+  // Convenient aliases that always point to the latest in each tier:
+  { id: "anthropic/claude-opus-4-5",              label: "Claude Opus 4.5 (alias)"   },
+  { id: "anthropic/claude-sonnet-4-5",            label: "Claude Sonnet 4.5 (alias)" },
+  { id: "anthropic/claude-haiku-4-5",             label: "Claude Haiku 4.5 (alias)"  },
+
+  // ── OpenAI ─────────────────────────────────────────────────────────────────
+  { id: "openai/gpt-4o",                          label: "GPT-4o"                 },
+  { id: "openai/gpt-4o-mini",                     label: "GPT-4o Mini"            },
+  { id: "openai/o1",                              label: "o1"                     },
+  { id: "openai/o3",                              label: "o3"                     },
+  { id: "openai/o3-mini",                         label: "o3-mini"                },
+  { id: "openai/gpt-5",                           label: "GPT-5"                  },
+  { id: "openai/gpt-5-mini",                      label: "GPT-5 Mini"             },
+
+  // ── Google ─────────────────────────────────────────────────────────────────
+  { id: "google/gemini-2.5-pro",                  label: "Gemini 2.5 Pro"         },
+  { id: "google/gemini-2.5-flash",                label: "Gemini 2.5 Flash"       },
+  { id: "google/gemini-2.0-flash",                label: "Gemini 2.0 Flash"       },
 ];
+
+config.agents.defaults.model.fallbacks = MODEL_CATALOG.map(m => m.id);
+
+// ── Model health probe (async, runs after gateway starts) ───────────────────
+// Tests each model with a tiny API call, writes results to model-health.json.
+// The gateway reads this at /data/.openclaw/model-health.json.
+const HEALTH_FILE = path.join(STATE_DIR, "model-health.json");
+
+async function probeModels() {
+  const https = require("https");
+  const results = [];
+
+  function probe(providerKey, modelId, headers, body) {
+    return new Promise((resolve) => {
+      const endpoints = {
+        anthropic: { host: "api.anthropic.com",              path: "/v1/messages" },
+        openai:    { host: "api.openai.com",                 path: "/v1/chat/completions" },
+        google:    { host: "generativelanguage.googleapis.com", path: `/v1beta/models/${modelId}:generateContent` },
+      };
+      const ep = endpoints[providerKey];
+      if (!ep) return resolve({ ok: false, error: "unknown provider" });
+      const data = JSON.stringify(body);
+      const req = https.request({
+        hostname: ep.host, path: ep.path, method: "POST",
+        headers: { ...headers, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) },
+        timeout: 10000,
+      }, res => {
+        let raw = "";
+        res.on("data", c => raw += c);
+        res.on("end", () => {
+          try { const j = JSON.parse(raw); resolve({ ok: res.statusCode < 400, status: res.statusCode, type: j?.error?.type }); }
+          catch { resolve({ ok: res.statusCode < 400, status: res.statusCode }); }
+        });
+      });
+      req.on("error", e => resolve({ ok: false, error: e.message }));
+      req.on("timeout", () => { req.destroy(); resolve({ ok: false, error: "timeout" }); });
+      req.write(data); req.end();
+    });
+  }
+
+  for (const { id, label } of MODEL_CATALOG) {
+    const [providerKey, ...rest] = id.split("/");
+    const modelId = rest.join("/");
+    let r;
+    try {
+      if (providerKey === "anthropic" && process.env.ANTHROPIC_API_KEY) {
+        r = await probe("anthropic", modelId,
+          { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+          { model: modelId, max_tokens: 1, messages: [{ role: "user", content: "." }] });
+      } else if (providerKey === "openai" && process.env.OPENAI_API_KEY) {
+        r = await probe("openai", modelId,
+          { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+          { model: modelId, max_tokens: 1, messages: [{ role: "user", content: "." }] });
+      } else if (providerKey === "google" && process.env.GEMINI_API_KEY) {
+        r = await probe("google", modelId,
+          { "x-goog-api-key": process.env.GEMINI_API_KEY },
+          { contents: [{ parts: [{ text: "." }] }], generationConfig: { maxOutputTokens: 1 } });
+      } else {
+        r = { ok: false, error: "no api key" };
+      }
+    } catch(e) { r = { ok: false, error: String(e) }; }
+    const status = r.ok ? "ok" : (r.error || r.type || `http_${r.status}`);
+    console.log(`[model-probe] ${id}: ${status}`);
+    results.push({ id, label, ok: r.ok, status });
+  }
+
+  // Write health file — update fallbacks to only include working models
+  fs.writeFileSync(HEALTH_FILE, JSON.stringify({
+    probed: new Date().toISOString(),
+    results,
+    ok: results.filter(r => r.ok).map(r => r.id),
+    failed: results.filter(r => !r.ok).map(r => ({ id: r.id, label: r.label, reason: r.status })),
+  }, null, 2));
+  console.log(`[model-probe] health written to ${HEALTH_FILE}`);
+
+  // Keep only verified-working models in fallbacks (remove failed ones)
+  const okIds = new Set(results.filter(r => r.ok).map(r => r.id));
+  if (okIds.size > 0) {
+    // Re-read config and patch
+    const live = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
+    if (live.agents?.defaults?.model?.fallbacks) {
+      live.agents.defaults.model.fallbacks = live.agents.defaults.model.fallbacks.filter(id => okIds.has(id));
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(live, null, 2));
+      console.log(`[model-probe] fallbacks trimmed to ${live.agents.defaults.model.fallbacks.length} verified models`);
+    }
+  }
+}
+
+// Kick off the probe after a short delay to not block entrypoint startup
+setTimeout(() => probeModels().catch(e => console.error("[model-probe] error:", e)), 5000);
+
+
 
 // ── Deepgram (audio transcription) ──────────────────────────────────────────
 if (process.env.DEEPGRAM_API_KEY) {
