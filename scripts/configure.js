@@ -508,6 +508,15 @@ async function probeModels() {
          live.models.providers[providerKey] = {};
       }
       
+      const baseUrls = {
+        anthropic: "https://api.anthropic.com",
+        openai: "https://api.openai.com/v1",
+        google: "https://generativelanguage.googleapis.com"
+      };
+      if (baseUrls[providerKey]) {
+        live.models.providers[providerKey].baseUrl = baseUrls[providerKey];
+      }
+
       // We only inject the explicitly verified models array so the gateway
       // allows routing for these model string IDs. We rely on the env vars
       // (OPENAI_API_KEY, etc) for the actual credentials.
