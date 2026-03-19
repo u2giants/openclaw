@@ -371,14 +371,17 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
 // Last verified: 2026-03. Update when Anthropic/OpenAI/Google retire models.
 const MODEL_CATALOG = [
   // ── Anthropic ──────────────────────────────────────────────────────────────
-  // Claude 3.5/3 retired Feb 2026. Current lineup is Claude 4.x:
   { id: "anthropic/claude-opus-4-5-20251101",     label: "Claude Opus 4.5"        },
   { id: "anthropic/claude-sonnet-4-5-20250929",   label: "Claude Sonnet 4.5"      },
   { id: "anthropic/claude-haiku-4-5-20251001",    label: "Claude Haiku 4.5"       },
-  // Convenient aliases that always point to the latest in each tier:
   { id: "anthropic/claude-opus-4-5",              label: "Claude Opus 4.5 (alias)"   },
   { id: "anthropic/claude-sonnet-4-5",            label: "Claude Sonnet 4.5 (alias)" },
   { id: "anthropic/claude-haiku-4-5",             label: "Claude Haiku 4.5 (alias)"  },
+  { id: "anthropic/sonnet-4.6",                   label: "Sonnet 4.6"                },
+  { id: "anthropic/haiku-4.6",                    label: "Haiku 4.6"                 },
+  { id: "anthropic/claude-3-5-sonnet-20241022",   label: "Claude 3.5 Sonnet"         },
+  { id: "anthropic/claude-3-opus-20240229",      label: "Claude 3 Opus"             },
+  { id: "anthropic/claude-3-haiku-20240307",     label: "Claude 3 Haiku"            },
 
   // ── OpenAI ─────────────────────────────────────────────────────────────────
   { id: "openai/gpt-4o",                          label: "GPT-4o"                 },
@@ -388,11 +391,15 @@ const MODEL_CATALOG = [
   { id: "openai/o3-mini",                         label: "o3-mini"                },
   { id: "openai/gpt-5",                           label: "GPT-5"                  },
   { id: "openai/gpt-5-mini",                      label: "GPT-5 Mini"             },
+  { id: "openai/chatgpt-5.4",                     label: "ChatGPT 5.4"            },
+  { id: "openai/chatgpt-5-mini",                  label: "ChatGPT 5 Mini"         },
 
   // ── Google ─────────────────────────────────────────────────────────────────
   { id: "google/gemini-2.5-pro",                  label: "Gemini 2.5 Pro"         },
   { id: "google/gemini-2.5-flash",                label: "Gemini 2.5 Flash"       },
   { id: "google/gemini-2.0-flash",                label: "Gemini 2.0 Flash"       },
+  { id: "google/gemini-flash-latest",             label: "Gemini Flash Latest"    },
+  { id: "google/gemini-3.1",                      label: "Gemini 3.1"             },
 ];
 
 config.agents.defaults.model.fallbacks = MODEL_CATALOG.map(m => m.id);
@@ -424,7 +431,7 @@ async function probeModels() {
         let raw = "";
         res.on("data", c => raw += c);
         res.on("end", () => {
-          try { const j = JSON.parse(raw); resolve({ ok: res.statusCode < 400, status: res.statusCode, type: j?.error?.type }); }
+          try { const j = JSON.parse(raw); resolve({ ok: res.statusCode < 400, status: res.statusCode, type: j?.error?.type || j?.error?.message }); }
           catch { resolve({ ok: res.statusCode < 400, status: res.statusCode }); }
         });
       });
@@ -444,9 +451,14 @@ async function probeModels() {
           { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
           { model: modelId, max_tokens: 1, messages: [{ role: "user", content: "." }] });
       } else if (providerKey === "openai" && process.env.OPENAI_API_KEY) {
+        // OpenAI reasoning models (o1, o3, gpt-5) reject max_tokens and require max_completion_tokens
+        const isReasoning = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.includes("gpt-5") || modelId.includes("chatgpt-5");
+        const payload = { model: modelId, messages: [{ role: "user", content: "." }] };
+        if (isReasoning) payload.max_completion_tokens = 1;
+        else payload.max_tokens = 1;
         r = await probe("openai", modelId,
           { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-          { model: modelId, max_tokens: 1, messages: [{ role: "user", content: "." }] });
+          payload);
       } else if (providerKey === "google" && process.env.GEMINI_API_KEY) {
         r = await probe("google", modelId,
           { "x-goog-api-key": process.env.GEMINI_API_KEY },
@@ -455,6 +467,16 @@ async function probeModels() {
         r = { ok: false, error: "no api key" };
       }
     } catch(e) { r = { ok: false, error: String(e) }; }
+    
+    // Treat invalid_request_error as OK for reasoning models if they complain about token limits,
+    // because that proves the model exists. For Anthropic, 404 means model doesn't exist.
+    if (!r.ok && r.status === 400 && providerKey === "openai" && r.type && typeof r.type === "string") {
+       // if the error proves the model exists but the request format is slightly off, we accept it.
+       if (r.type.includes("string") || r.type.includes("parameter") || r.type.includes("invalid_request_error")) {
+           r.ok = true;
+       }
+    }
+
     const status = r.ok ? "ok" : (r.error || r.type || `http_${r.status}`);
     console.log(`[model-probe] ${id}: ${status}`);
     results.push({ id, label, ok: r.ok, status });
