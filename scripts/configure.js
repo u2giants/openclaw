@@ -166,13 +166,6 @@ for (const [envKey, label, providerKey] of builtinProviders) {
   if (process.env[envKey]) {
     console.log(`[configure] ${label} provider enabled (${envKey} set)`);
   }
-  // Clean up stale explicit provider entries from persisted config.
-  // Built-in providers must NOT have models.providers entries — those override
-  // OpenClaw's native API routing and cause 404 errors.
-  if (config.models?.providers?.[providerKey]) {
-    console.log(`[configure] removing stale models.providers.${providerKey} (built-in provider)`);
-    delete config.models.providers[providerKey];
-  }
 }
 
 // ── Custom/proxy providers (need full models.providers config) ──────────────
@@ -491,16 +484,39 @@ async function probeModels() {
   }, null, 2));
   console.log(`[model-probe] health written to ${HEALTH_FILE}`);
 
-  // Keep only verified-working models in fallbacks (remove failed ones)
-  const okIds = new Set(results.filter(r => r.ok).map(r => r.id));
-  if (okIds.size > 0) {
-    // Re-read config and patch
+  // Keep only verified-working models in fallbacks and EXPLICITLY register them
+  const okResults = results.filter(r => r.ok);
+  if (okResults.length > 0) {
     const live = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
-    if (live.agents?.defaults?.model?.fallbacks) {
-      live.agents.defaults.model.fallbacks = live.agents.defaults.model.fallbacks.filter(id => okIds.has(id));
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(live, null, 2));
-      console.log(`[model-probe] fallbacks trimmed to ${live.agents.defaults.model.fallbacks.length} verified models`);
+    if (!live.models) live.models = {};
+    if (!live.models.providers) live.models.providers = {};
+
+    live.agents.defaults.model.fallbacks = okResults.map(r => r.id);
+
+    // Group verified models by provider and explicitly register them in models.providers
+    // This forces OpenClaw's gateway to accept new/custom models it wasn't compiled with.
+    const byProvider = {};
+    for (const r of okResults) {
+      const [providerKey, ...rest] = r.id.split("/");
+      const modelId = rest.join("/");
+      if (!byProvider[providerKey]) byProvider[providerKey] = [];
+      byProvider[providerKey].push({ id: modelId, name: r.label });
     }
+
+    for (const [providerKey, models] of Object.entries(byProvider)) {
+      if (!live.models.providers[providerKey]) {
+         live.models.providers[providerKey] = {};
+      }
+      
+      // We only inject the explicitly verified models array so the gateway
+      // allows routing for these model string IDs. We rely on the env vars
+      // (OPENAI_API_KEY, etc) for the actual credentials.
+      live.models.providers[providerKey].models = models;
+      console.log(`[model-probe] explicitly registered ${models.length} verified models for ${providerKey}`);
+    }
+
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(live, null, 2));
+    console.log(`[model-probe] live config updated with explicit model registrations`);
   }
 }
 
