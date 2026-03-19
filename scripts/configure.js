@@ -177,7 +177,7 @@ if (!config.models.providers) config.models.providers = {};
 if (process.env.OPENAI_API_KEY) {
   config.models.providers.openai = {
     baseUrl: "https://api.openai.com/v1",
-    apiKey: { type: "env", key: "OPENAI_API_KEY" },
+    apiKey: process.env.OPENAI_API_KEY,
     models: [
       { id: "gpt-4o", name: "GPT-4o", input: ["text", "image"] },
       { id: "gpt-4o-mini", name: "GPT-4o Mini", input: ["text", "image"] },
@@ -193,7 +193,7 @@ if (process.env.OPENAI_API_KEY) {
 if (process.env.ANTHROPIC_API_KEY) {
   config.models.providers.anthropic = {
     baseUrl: "https://api.anthropic.com/v1",
-    apiKey: { type: "env", key: "ANTHROPIC_API_KEY" },
+    apiKey: process.env.ANTHROPIC_API_KEY,
     models: [
       { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", input: ["text", "image"] },
       { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", input: ["text"] },
@@ -207,7 +207,7 @@ if (process.env.ANTHROPIC_API_KEY) {
 if (process.env.GEMINI_API_KEY) {
   config.models.providers.google = {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    apiKey: { type: "env", key: "GEMINI_API_KEY" },
+    apiKey: process.env.GEMINI_API_KEY,
     models: [
       { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", input: ["text", "image"] },
       { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", input: ["text", "image"] },
