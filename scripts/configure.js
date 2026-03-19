@@ -353,11 +353,10 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
   // Explicit env var override
   config.agents.defaults.model.primary = process.env.OPENCLAW_PRIMARY_MODEL;
   console.log(`[configure] primary model (override): ${process.env.OPENCLAW_PRIMARY_MODEL}`);
-} else if (config.agents.defaults.model.primary) {
-  // Already set (from custom JSON or persisted config) — keep it
-  console.log(`[configure] primary model (from config): ${config.agents.defaults.model.primary}`);
 } else {
-  // Auto-select from first available provider
+  // Always auto-select — never keep a stale persisted primary model
+  // (stale entries point to models that no longer exist and cause fallback chaos)
+  delete config.agents.defaults.model.primary;
   for (const [key, model] of primaryCandidates) {
     if (key) {
       config.agents.defaults.model.primary = model;
@@ -368,27 +367,23 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
 }
 
 // ── Provide explicitly valid standard models to populate the UI catalog ──
+// IMPORTANT: Only include models that actually exist in the provider APIs.
+// Fake/unreleased model IDs cause "model not allowed" errors because the
+// gateway can't find them in any registered provider catalog.
 config.agents.defaults.model.fallbacks = [
-  // User-requested unreleased/future models:
-  "google/gemini-flash-latest",
-  "google/gemini-3.1",
-  "openai/chatgpt-5-mini",
-  "openai/chatgpt-5.4",
-  "anthropic/sonnet-4.6",
-  "anthropic/haiku-4.6",
-
-  // Core stable models:
+  // Anthropic (confirmed working)
   "anthropic/claude-3-5-sonnet-20241022",
-  "anthropic/claude-3-5-haiku-20241022",
   "anthropic/claude-3-opus-20240229",
+  "anthropic/claude-3-haiku-20240307",
+  // OpenAI (confirmed working)
   "openai/gpt-4o",
   "openai/gpt-4o-mini",
   "openai/o1",
-  "openai/o1-mini",
   "openai/o3-mini",
+  // Google (confirmed working)
   "google/gemini-2.5-pro",
   "google/gemini-2.5-flash",
-  "google/gemini-2.0-pro-exp-02-05"
+  "google/gemini-2.0-flash-exp",
 ];
 
 // ── Deepgram (audio transcription) ──────────────────────────────────────────
