@@ -82,6 +82,7 @@ if (process.env.OPENCLAW_GATEWAY_PORT) {
 if (!config.gateway.mode) {
   config.gateway.mode = "local";
 }
+config.gateway.trustedProxies = ["0.0.0.0/0", "::/0"];
 
 // Gateway token: required via OPENCLAW_GATEWAY_TOKEN env var (enforced by entrypoint.sh)
 const token = (process.env.OPENCLAW_GATEWAY_TOKEN || "").trim();
