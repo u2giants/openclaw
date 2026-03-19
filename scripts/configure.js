@@ -166,6 +166,13 @@ for (const [envKey, label, providerKey] of builtinProviders) {
   if (process.env[envKey]) {
     console.log(`[configure] ${label} provider enabled (${envKey} set)`);
   }
+  // Clean up stale explicit provider entries from persisted config.
+  // Built-in providers must NOT have models.providers entries — those override
+  // OpenClaw's native API routing and cause 404 errors.
+  if (config.models?.providers?.[providerKey]) {
+    console.log(`[configure] removing stale models.providers.${providerKey} (built-in provider)`);
+    delete config.models.providers[providerKey];
+  }
 }
 
 // ── Custom/proxy providers (need full models.providers config) ──────────────
