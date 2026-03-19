@@ -54,14 +54,13 @@ fi
 EOF
 chmod +x "$NPM_CONFIG_PREFIX/bin/brew"
 
-# ── Install extra apt packages (if requested) ────────────────────────────────
-if [ -n "${OPENCLAW_DOCKER_APT_PACKAGES:-}" ]; then
-  echo "[entrypoint] installing extra packages: $OPENCLAW_DOCKER_APT_PACKAGES"
-  apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      $OPENCLAW_DOCKER_APT_PACKAGES \
-    && rm -rf /var/lib/apt/lists/*
-fi
+# ── Install extra apt packages (if requested) + required utilities ───────────
+EXTRA_PKGS="jq ${OPENCLAW_DOCKER_APT_PACKAGES:-}"
+echo "[entrypoint] installing required and extra packages: $EXTRA_PKGS"
+apt-get update \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    $EXTRA_PKGS \
+  && rm -rf /var/lib/apt/lists/*
 
 # ── Docker API access (install CLI when socket is available) ─────────────────
 # Mount /var/run/docker.sock (or set DOCKER_HOST) to let openclaw agents run
