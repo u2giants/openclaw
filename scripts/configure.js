@@ -91,16 +91,21 @@ if (token) {
   config.gateway.auth.token = token;
 }
 
-// Allow control UI without device pairing (only set defaults, don't overwrite)
+// Allow control UI without device pairing — always override (nginx basic auth protects the endpoint)
+// dangerouslyDisableDeviceAuth works around a 2026.2.21 regression where allowInsecureAuth
+// stopped bypassing pairing for reverse-proxy deployments (openclaw issue #22908)
 ensure(config, "gateway", "controlUi");
-if (config.gateway.controlUi.allowInsecureAuth === undefined) {
-  config.gateway.controlUi.allowInsecureAuth = true;
-}
-if (config.gateway.controlUi.dangerouslyDisableDeviceAuth === undefined) {
-  config.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
-}
-if (config.gateway.controlUi.enabled === undefined) {
-  config.gateway.controlUi.enabled = true;
+config.gateway.controlUi.allowInsecureAuth = true;
+config.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
+config.gateway.controlUi.enabled = true;
+
+// ClawdTalk: allow sessions_send tool so voice calls can route to the agent
+if (process.env.CLAWDTALK_API_KEY) {
+  ensure(config, "gateway", "tools");
+  const allowed = Array.isArray(config.gateway.tools.allow) ? config.gateway.tools.allow : [];
+  if (!allowed.includes("sessions_send")) allowed.push("sessions_send");
+  config.gateway.tools.allow = allowed;
+  console.log("[configure] ClawdTalk: sessions_send tool allowed");
 }
 
 // CSV → array of allowed origins (e.g. "https://claw.designflow.app,https://other.domain.com")
@@ -165,57 +170,20 @@ for (const [envKey, label, providerKey] of builtinProviders) {
   if (process.env[envKey]) {
     console.log(`[configure] ${label} provider enabled (${envKey} set)`);
   }
+  // Clean up stale models.providers entries from previous env-var runs —
+  // built-in providers must NOT have models.providers entries.
+  // But don't touch entries from custom JSON.
+  if (!hasCustomConfig && config.models?.providers?.[providerKey]) {
+    console.log(`[configure] removing stale models.providers.${providerKey} (built-in, not needed)`);
+    delete config.models.providers[providerKey];
+  }
 }
-
-// ── Explicitly Define Native Providers & Models ─────────────────────────────
-// OpenClaw 2026.3.13 deactivated internal arrays. Explicitly populate custom `models.providers`
-// to ensure endpoints correctly associate models with their native vendor endpoints instead
-// of accidentally assigning everything under `.fallbacks` to Anthropic.
-if (!config.models) config.models = {};
-if (!config.models.providers) config.models.providers = {};
-
-if (process.env.OPENAI_API_KEY) {
-  config.models.providers.openai = {
-    baseUrl: "https://api.openai.com/v1",
-    apiKey: { type: "env", key: "OPENAI_API_KEY" },
-    models: [
-      { id: "gpt-4o", name: "GPT-4o", input: ["text", "image"] },
-      { id: "gpt-4o-mini", name: "GPT-4o Mini", input: ["text", "image"] },
-      { id: "o1", name: "o1", input: ["text"] },
-      { id: "o1-mini", name: "o1-mini", input: ["text"] },
-      { id: "o3-mini", name: "o3-mini", input: ["text"] },
-      { id: "chatgpt-5-mini", name: "ChatGPT 5 Mini", input: ["text"] },
-      { id: "chatgpt-5.4", name: "ChatGPT 5.4", input: ["text"] }
-    ]
-  };
+if (opencodeKey) {
+  console.log("[configure] OpenCode provider enabled (OPENCODE_API_KEY set)");
 }
-
-if (process.env.ANTHROPIC_API_KEY) {
-  config.models.providers.anthropic = {
-    baseUrl: "https://api.anthropic.com/v1",
-    apiKey: { type: "env", key: "ANTHROPIC_API_KEY" },
-    models: [
-      { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", input: ["text", "image"] },
-      { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", input: ["text"] },
-      { id: "claude-3-opus-20240229", name: "Claude 3 Opus", input: ["text", "image"] },
-      { id: "sonnet-4.6", name: "Sonnet 4.6", input: ["text", "image"] },
-      { id: "haiku-4.6", name: "Haiku 4.6", input: ["text"] }
-    ]
-  };
-}
-
-if (process.env.GEMINI_API_KEY) {
-  config.models.providers.google = {
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    apiKey: { type: "env", key: "GEMINI_API_KEY" },
-    models: [
-      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", input: ["text", "image"] },
-      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", input: ["text", "image"] },
-      { id: "gemini-2.0-pro-exp-02-05", name: "Gemini 2.0 Pro Exp", input: ["text", "image"] },
-      { id: "gemini-flash-latest", name: "Gemini Flash Latest", input: ["text", "image"] },
-      { id: "gemini-3.1", name: "Gemini 3.1", input: ["text", "image"] }
-    ]
-  };
+if (!hasCustomConfig && config.models?.providers?.opencode) {
+  console.log("[configure] removing stale models.providers.opencode (built-in, not needed)");
+  delete config.models.providers.opencode;
 }
 
 // ── Custom/proxy providers (need full models.providers config) ──────────────
@@ -325,8 +293,8 @@ if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
     api: "bedrock-converse-stream",
     baseUrl: `https://bedrock-runtime.${region}.amazonaws.com`,
     models: [
-      { id: "anthropic.claude-3-opus-20240229-v1:0", name: "Claude 3 Opus (Bedrock)", contextWindow: 200000 },
-      { id: "anthropic.claude-3-5-sonnet-20241022-v1:0", name: "Claude 3.5 Sonnet (Bedrock)", contextWindow: 200000 },
+      { id: "anthropic.claude-opus-4-5-20251101-v1:0", name: "Claude Opus 4.5 (Bedrock)", contextWindow: 200000 },
+      { id: "anthropic.claude-sonnet-4-5-20250929-v1:0", name: "Claude Sonnet 4.5 (Bedrock)", contextWindow: 200000 },
     ],
   };
   ensure(config, "models");
@@ -371,12 +339,12 @@ if (ollamaUrl) {
 
 // ── Primary model selection (first available provider wins) ─────────────────
 const primaryCandidates = [
-  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-3-5-sonnet-20241022"],
-  [process.env.OPENAI_API_KEY,         "openai/gpt-4o"],
-  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-3-5-sonnet-20241022"],
-  [process.env.GEMINI_API_KEY,         "google/gemini-1.5-pro-latest"],
-  [opencodeKey,                        "opencode/claude-3-5-sonnet-20241022"],
-  [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-3-5-sonnet-20241022"],
+  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-opus-4-5-20251101"],
+  [process.env.OPENAI_API_KEY,         "openai/gpt-5.2"],
+  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-opus-4-5"],
+  [process.env.GEMINI_API_KEY,         "google/gemini-2.5-pro"],
+  [opencodeKey,                        "opencode/claude-opus-4-5"],
+  [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-opus-4-5"],
   [process.env.XAI_API_KEY,            "xai/grok-3"],
   [process.env.GROQ_API_KEY,           "groq/llama-3.3-70b-versatile"],
   [process.env.MISTRAL_API_KEY,        "mistral/mistral-large-latest"],
@@ -387,20 +355,18 @@ const primaryCandidates = [
   [process.env.MINIMAX_API_KEY,        "minimax/MiniMax-M2.1"],
   [process.env.SYNTHETIC_API_KEY,      "synthetic/hf:MiniMaxAI/MiniMax-M2.1"],
   [process.env.ZAI_API_KEY,            "zai/glm-4.7"],
-  [process.env.AI_GATEWAY_API_KEY,     "vercel-ai-gateway/anthropic/claude-3-5-sonnet-20241022"],
+  [process.env.AI_GATEWAY_API_KEY,     "vercel-ai-gateway/anthropic/claude-opus-4.5"],
   [process.env.XIAOMI_API_KEY,         "xiaomi/mimo-v2-flash"],
-  [process.env.AWS_ACCESS_KEY_ID,      "amazon-bedrock/anthropic.claude-3-5-sonnet-20241022-v1:0"],
+  [process.env.AWS_ACCESS_KEY_ID,      "amazon-bedrock/anthropic.claude-opus-4-5-20251101-v1:0"],
   [ollamaUrl,                          "ollama/llama3.3"],
 ];
 if (process.env.OPENCLAW_PRIMARY_MODEL) {
-  // Explicit env var override
+  // Explicit env var override.
   config.agents.defaults.model.primary = process.env.OPENCLAW_PRIMARY_MODEL;
   console.log(`[configure] primary model (override): ${process.env.OPENCLAW_PRIMARY_MODEL}`);
-} else if (config.agents.defaults.model.primary) {
-  // Already set (from custom JSON or persisted config) — keep it
-  console.log(`[configure] primary model (from config): ${config.agents.defaults.model.primary}`);
-} else {
-  // Auto-select from first available provider
+} else if (!config.agents.defaults.model.primary) {
+  // Auto-select from first available provider.
+  // Required: gateway crashes if agents.defaults.model.primary is absent.
   for (const [key, model] of primaryCandidates) {
     if (key) {
       config.agents.defaults.model.primary = model;
@@ -409,30 +375,6 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
     }
   }
 }
-
-// ── Provide explicitly valid standard models to populate the UI catalog ──
-config.agents.defaults.model.fallbacks = [
-  // User-requested unreleased/future models:
-  "google/gemini-flash-latest",
-  "google/gemini-3.1",
-  "openai/chatgpt-5-mini",
-  "openai/chatgpt-5.4",
-  "anthropic/sonnet-4.6",
-  "anthropic/haiku-4.6",
-
-  // Core stable models:
-  "anthropic/claude-3-5-sonnet-20241022",
-  "anthropic/claude-3-5-haiku-20241022",
-  "anthropic/claude-3-opus-20240229",
-  "openai/gpt-4o",
-  "openai/gpt-4o-mini",
-  "openai/o1",
-  "openai/o1-mini",
-  "openai/o3-mini",
-  "google/gemini-2.5-pro",
-  "google/gemini-2.5-flash",
-  "google/gemini-2.0-pro-exp-02-05"
-];
 
 // ── Deepgram (audio transcription) ──────────────────────────────────────────
 if (process.env.DEEPGRAM_API_KEY) {

@@ -12,6 +12,21 @@ Multiple origins: `GATEWAY_ALLOWED_ORIGINS=https://claw.designflow.app,https://o
 
 ---
 
+## Docker API access env var
+
+### `DOCKER_HOST` (optional string)
+
+When set (or when `/var/run/docker.sock` is bind-mounted), `entrypoint.sh` auto-installs the Docker CLI (`docker.io` via apt) on first start and ensures the socket is accessible. Default: `unix:///var/run/docker.sock`.
+
+Handled entirely in `entrypoint.sh` — no `configure.js` mapping needed (Docker API access is not an openclaw gateway config option; it's a host-level capability for agent tools).
+
+To enable: uncomment the socket mount in `docker-compose.yml`:
+```yaml
+- /var/run/docker.sock:/var/run/docker.sock
+```
+
+---
+
 ## Channel env var pattern
 
 Each channel in `scripts/configure.js` maps `CHANNEL_*` env vars → `channels.<name>.*` in `openclaw.json`.

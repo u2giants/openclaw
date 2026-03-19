@@ -312,6 +312,28 @@ If a channel env var is removed, that channel is cleaned from config on next sta
 | `MOONSHOT_BASE_URL` | Override Moonshot API base URL. Default: `https://api.moonshot.ai/v1`. |
 | `KIMI_BASE_URL` | Override Kimi Coding API base URL. Default: `https://api.moonshot.ai/anthropic`. |
 
+### Docker API access (optional)
+
+Mount the Docker socket to give openclaw agents the ability to run `docker` commands — list containers, start/stop services, build images, inspect logs, etc.
+
+| Variable | Default | Description |
+|---|---|---|
+| `DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker socket path. When set (or when `/var/run/docker.sock` is mounted), the Docker CLI is auto-installed on first container start. |
+
+**Setup in `docker-compose.yml`:**
+
+Uncomment the socket volume mount under the `openclaw` service:
+
+```yaml
+volumes:
+  - openclaw-data:/data
+  - /var/run/docker.sock:/var/run/docker.sock
+```
+
+No env var changes needed — the socket path is auto-detected. On first start, the Docker CLI (`docker.io`) is installed via apt and the socket is made accessible.
+
+> **Security note:** Mounting the Docker socket gives openclaw agents root-equivalent access to the host. Only enable this when you trust the agents and need container management capabilities.
+
 ### Extra system packages (optional)
 
 | Variable | Description |

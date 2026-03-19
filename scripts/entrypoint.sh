@@ -63,6 +63,28 @@ if [ -n "${OPENCLAW_DOCKER_APT_PACKAGES:-}" ]; then
     && rm -rf /var/lib/apt/lists/*
 fi
 
+# ── Docker API access (install CLI when socket is available) ─────────────────
+# Mount /var/run/docker.sock (or set DOCKER_HOST) to let openclaw agents run
+# docker commands. The Docker CLI is installed automatically on first start.
+_docker_sock="${DOCKER_HOST:-unix:///var/run/docker.sock}"
+_docker_sock_path="${_docker_sock#unix://}"
+if [ -S "$_docker_sock_path" ] || [ -n "${DOCKER_HOST:-}" ]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "[entrypoint] Docker socket detected — installing Docker CLI..."
+    apt-get update \
+      && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        docker.io \
+      && rm -rf /var/lib/apt/lists/*
+  else
+    echo "[entrypoint] Docker CLI already installed"
+  fi
+  # Ensure the openclaw process can reach the socket
+  if [ -S "$_docker_sock_path" ]; then
+    chmod 666 "$_docker_sock_path" 2>/dev/null || true
+    echo "[entrypoint] Docker socket ready: $_docker_sock_path"
+  fi
+fi
+
 # ── Require OPENCLAW_GATEWAY_TOKEN ───────────────────────────────────────────
 if [ -z "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
   echo "[entrypoint] ERROR: OPENCLAW_GATEWAY_TOKEN is required."
@@ -120,14 +142,35 @@ if [ -n "$INIT_SCRIPT" ]; then
   fi
 fi
 
+
 # ── Configure openclaw from env vars ─────────────────────────────────────────
+# Clear persisted openclaw.json on each startup to prevent version-mismatch
+# crashes when the base image version changes. All config is reconstructed
+# from env vars by configure.js + openclaw doctor --fix, so nothing is lost.
+echo "[entrypoint] clearing persisted openclaw.json (rebuilt from env vars)"
+rm -f "$STATE_DIR/openclaw.json" 2>/dev/null || true
+
 echo "[entrypoint] running configure..."
 node /app/scripts/configure.js
+
+
 chmod 600 "$STATE_DIR/openclaw.json"
 
 # ── Auto-fix doctor suggestions (e.g. enable configured channels) ─────────
 # Removed 'openclaw doctor --fix' because it infinite-loops on invalid schema
 echo "[entrypoint] skipping doctor --fix to avoid infinite loop bug"
+
+# ── One-time pairing approvals ────────────────────────────────────────────────
+# Set OPENCLAW_PAIR_APPROVE=<channel>:<code> to approve a pairing on startup.
+# Example: OPENCLAW_PAIR_APPROVE=telegram:CRSJTY6S
+# The env var is consumed once; remove it from Coolify after the next redeploy.
+if [ -n "${OPENCLAW_PAIR_APPROVE:-}" ]; then
+  PAIR_CHANNEL=$(echo "$OPENCLAW_PAIR_APPROVE" | cut -d: -f1)
+  PAIR_CODE=$(echo "$OPENCLAW_PAIR_APPROVE" | cut -d: -f2)
+  echo "[entrypoint] approving pairing: $PAIR_CHANNEL $PAIR_CODE"
+  cd /opt/openclaw/app
+  openclaw pairing approve "$PAIR_CHANNEL" "$PAIR_CODE" 2>&1 || true
+fi
 
 # ── Read hooks path from generated config (if hooks enabled) ─────────────────
 HOOKS_PATH=""
@@ -293,6 +336,40 @@ server {
 }
 NGINXEOF
 
+# ── ClawdTalk voice/SMS integration ─────────────────────────────────────────
+if [ -n "${CLAWDTALK_API_KEY:-}" ]; then
+  CLAWDTALK_DIR="$STATE_DIR/skills/clawdtalk-client"
+  mkdir -p "$CLAWDTALK_DIR"
+
+  # Download skill on first run (or if ws-client.js is missing)
+  if [ ! -f "$CLAWDTALK_DIR/ws-client.js" ]; then
+    echo "[entrypoint] downloading clawdtalk-client skill..."
+    curl -sL https://github.com/team-telnyx/clawdtalk-client/archive/refs/heads/main.tar.gz \
+      | tar -xz --strip-components=1 -C "$CLAWDTALK_DIR"
+  fi
+
+  # Write skill-config.json into scripts/ (where ws-client.js lives)
+  mkdir -p "$CLAWDTALK_DIR/scripts"
+  printf '{\n  "api_key": "%s",\n  "server": "https://clawdtalk.com",\n  "gateway_url": "http://127.0.0.1:%s",\n  "gateway_token": "%s",\n  "agent_id": "main"\n}\n' \
+    "$CLAWDTALK_API_KEY" "$GATEWAY_PORT" "$GATEWAY_TOKEN" \
+    > "$CLAWDTALK_DIR/scripts/skill-config.json"
+  chmod 600 "$CLAWDTALK_DIR/scripts/skill-config.json"
+
+  # Install Node.js dependencies (package.json is at repo root)
+  if [ -f "$CLAWDTALK_DIR/package.json" ] && [ ! -d "$CLAWDTALK_DIR/node_modules/ws" ]; then
+    echo "[entrypoint] installing ClawdTalk dependencies..."
+    npm install --production --prefix "$CLAWDTALK_DIR" 2>&1 | tail -3
+  fi
+
+  # Start WebSocket client in background
+  # ws-client.js lives in scripts/ and reads skill-config.json from its own dir
+  echo "[entrypoint] starting ClawdTalk WebSocket client..."
+  cd "$CLAWDTALK_DIR/scripts"
+  nohup node ws-client.js >> "$STATE_DIR/clawdtalk.log" 2>&1 &
+  echo "[entrypoint] ClawdTalk started (pid: $!, log: $STATE_DIR/clawdtalk.log)"
+  cd /opt/openclaw/app
+fi
+
 # ── Start nginx ──────────────────────────────────────────────────────────────
 echo "[entrypoint] starting nginx on port ${PORT:-8080}..."
 nginx
@@ -301,10 +378,100 @@ nginx
 rm -f /tmp/openclaw-gateway.lock 2>/dev/null || true
 rm -f "$STATE_DIR/gateway.lock" 2>/dev/null || true
 
-# ── Start openclaw gateway ───────────────────────────────────────────────────
-echo "[entrypoint] starting openclaw gateway on port $GATEWAY_PORT..."
+# ── Remove cached auth for providers that are no longer configured ────────────
+# This prevents unconfigured providers (e.g. github-copilot, opencode) from
+# appearing in the model picker or causing "No API key" errors.
+AUTH_PROFILES="$STATE_DIR/agents/main/agent/auth-profiles.json"
+if [ -f "$AUTH_PROFILES" ]; then
+  node -e "
+    const fs = require('fs');
+    const file = process.argv[1];
+    try {
+      const profiles = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const toRemove = [];
+      if (!process.env.COPILOT_GITHUB_TOKEN && profiles['github-copilot'])
+        toRemove.push('github-copilot');
+      if (!process.env.OPENCODE_API_KEY && !process.env.OPENCODE_ZEN_API_KEY && profiles['opencode'])
+        toRemove.push('opencode');
+      if (toRemove.length > 0) {
+        toRemove.forEach(k => delete profiles[k]);
+        fs.writeFileSync(file, JSON.stringify(profiles, null, 2));
+        console.log('[entrypoint] removed unconfigured providers from auth-profiles:', toRemove.join(', '));
+      }
+    } catch (e) {
+      console.log('[entrypoint] could not clean auth-profiles:', e.message);
+    }
+  " "$AUTH_PROFILES"
+fi
 
-# cwd must be the app root so the gateway finds dist/control-ui/ assets
-# "gateway run" = foreground mode; all config comes from openclaw.json
+# ── Start openclaw gateway (with crash recovery) ─────────────────────────────
+# If the gateway crashes within FAST_CRASH_WINDOW seconds it's almost certainly
+# a bad config field rather than a transient error. We progressively strip the
+# most fragile config sections and retry rather than letting Docker see a rapid
+# exit-restart loop (which would spin 200+ times with the same broken config).
+#
+# Healing sequence on consecutive fast crashes:
+#   crash 1 → strip agents.defaults.model.list
+#   crash 2 → strip all of agents.defaults.model
+#   crash 3 → strip entire agents.defaults block
+#   crash 4+ → backoff 30 s then retry from scratch (re-runs configure.js)
+#
+# Note: do NOT use exec — the gateway receives SIGHUP as PID 1 from Docker's
+# init system and exits unexpectedly. Run as a child of the shell instead.
+
+FAST_CRASH_WINDOW=20   # seconds — crashes faster than this are config crashes
+OCW_CONF="$STATE_DIR/openclaw.json"
+fast_crashes=0
+
+_strip_conf() {
+  local level=$1
+  node -e "
+    const fs = require('fs');
+    try {
+      const c = JSON.parse(fs.readFileSync('$OCW_CONF', 'utf8'));
+      const lvl = parseInt(process.argv[1]);
+      if (lvl >= 1 && c.agents && c.agents.defaults && c.agents.defaults.model)
+        delete c.agents.defaults.model.list;
+      if (lvl >= 2 && c.agents && c.agents.defaults)
+        delete c.agents.defaults.model;
+      if (lvl >= 3 && c.agents)
+        delete c.agents.defaults;
+      fs.writeFileSync('$OCW_CONF', JSON.stringify(c, null, 2));
+      console.log('[entrypoint] config stripped at level ' + lvl);
+    } catch(e) {
+      console.log('[entrypoint] config strip failed: ' + e.message);
+    }
+  " "$level" || true
+}
+
+echo "[entrypoint] starting openclaw gateway on port $GATEWAY_PORT..."
 cd /opt/openclaw/app
-exec openclaw gateway run
+
+while true; do
+  _start=$(date +%s)
+  openclaw gateway run
+  _code=$?
+  _elapsed=$(( $(date +%s) - _start ))
+
+  if [ $_elapsed -lt $FAST_CRASH_WINDOW ]; then
+    fast_crashes=$(( fast_crashes + 1 ))
+    echo "[entrypoint] gateway fast crash #${fast_crashes} after ${_elapsed}s (exit ${_code})"
+
+    if [ $fast_crashes -le 3 ]; then
+      echo "[entrypoint] stripping config (level ${fast_crashes}) and retrying..."
+      _strip_conf "$fast_crashes"
+      sleep 2
+    else
+      echo "[entrypoint] repeated fast crashes — waiting 30s, then rebuilding config from scratch..."
+      sleep 30
+      node /app/scripts/configure.js 2>&1 || true
+      openclaw doctor --fix 2>&1 || true
+      fast_crashes=0
+    fi
+  else
+    # Gateway ran for a reasonable time; reset the fast-crash counter.
+    echo "[entrypoint] gateway exited after ${_elapsed}s (exit ${_code}), restarting..."
+    fast_crashes=0
+    sleep 2
+  fi
+done
