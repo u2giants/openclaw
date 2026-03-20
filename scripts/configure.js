@@ -166,6 +166,13 @@ for (const [envKey, label, providerKey] of builtinProviders) {
   if (process.env[envKey]) {
     console.log(`[configure] ${label} provider enabled (${envKey} set)`);
   }
+  // Clean up stale explicit provider entries from persisted config.
+  // Built-in providers must NOT have models.providers entries — those override
+  // OpenClaw's native API routing and cause wrong-provider errors.
+  if (config.models?.providers?.[providerKey]) {
+    console.log(`[configure] removing stale models.providers.${providerKey} (built-in provider)`);
+    delete config.models.providers[providerKey];
+  }
 }
 
 // ── Custom/proxy providers (need full models.providers config) ──────────────
@@ -493,12 +500,19 @@ async function probeModels() {
 
     live.agents.defaults.model.fallbacks = okResults.map(r => r.id);
 
-    // Group verified models by provider and explicitly register them in models.providers
-    // This forces OpenClaw's gateway to accept new/custom models it wasn't compiled with.
+    // Group verified models by provider — only inject explicit config for custom
+    // providers. Built-in providers (anthropic, openai, google, etc.) must NOT
+    // have models.providers entries; those override native routing and cause
+    // wrong-provider errors (e.g. google models routed as anthropic/...).
+    const BUILTIN_PROVIDERS = new Set([
+      "anthropic", "openai", "google", "openrouter", "xai", "groq",
+      "mistral", "cerebras", "zai", "vercel-ai-gateway", "github-copilot",
+    ]);
     const byProvider = {};
     for (const r of okResults) {
       const [providerKey, ...rest] = r.id.split("/");
       const modelId = rest.join("/");
+      if (BUILTIN_PROVIDERS.has(providerKey)) continue; // native routing handles these
       if (!byProvider[providerKey]) byProvider[providerKey] = [];
       byProvider[providerKey].push({ id: modelId, name: r.label });
     }
@@ -507,19 +521,6 @@ async function probeModels() {
       if (!live.models.providers[providerKey]) {
          live.models.providers[providerKey] = {};
       }
-      
-      const baseUrls = {
-        anthropic: "https://api.anthropic.com",
-        openai: "https://api.openai.com/v1",
-        google: "https://generativelanguage.googleapis.com"
-      };
-      if (baseUrls[providerKey]) {
-        live.models.providers[providerKey].baseUrl = baseUrls[providerKey];
-      }
-
-      // We only inject the explicitly verified models array so the gateway
-      // allows routing for these model string IDs. We rely on the env vars
-      // (OPENAI_API_KEY, etc) for the actual credentials.
       live.models.providers[providerKey].models = models;
       console.log(`[model-probe] explicitly registered ${models.length} verified models for ${providerKey}`);
     }
