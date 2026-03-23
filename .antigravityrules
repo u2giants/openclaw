@@ -1,0 +1,4 @@
+# Core Rules
+1. **Never edit live server files**: Do NOT use SSH to patch files directly on a remote server.
+2. **Local Edits Only**: Code changes must be made locally, committed to Git, and pushed to GitHub.
+3. **Use Existing Connections**: Do not open new generic SSH terminal windows. Use `send_command_input` to interact with currently running SSH sessions instead.
