@@ -376,9 +376,9 @@ const MODEL_CATALOG = [
   { id: "anthropic/claude-3-haiku-20240307",      label: "Claude Haiku 3"         },
 
   // ── OpenAI ─────────────────────────────────────────────────────────────────
-  { id: "openai/chatgpt-5.4",                     label: "ChatGPT 5.4"            },
-  { id: "openai/chatgpt-5.4-mini",                label: "ChatGPT 5.4 Mini"       },
-  { id: "openai/chatgpt-5.4-nano",                label: "ChatGPT 5.4 Nano"       },
+  { id: "openai/gpt-5.4",                         label: "GPT-5.4"                },
+  { id: "openai/gpt-5.4-mini",                    label: "GPT-5.4 Mini"           },
+  { id: "openai/gpt-5.4-nano",                    label: "GPT-5.4 Nano"           },
 
   // ── Google ─────────────────────────────────────────────────────────────────
   { id: "google/gemini-3.1-pro-preview",          label: "Gemini 3.1 Pro Preview"        },
@@ -437,7 +437,7 @@ async function probeModels() {
           { model: modelId, max_tokens: 1, messages: [{ role: "user", content: "." }] });
       } else if (providerKey === "openai" && process.env.OPENAI_API_KEY) {
         // OpenAI reasoning models (o1, o3, gpt-5) reject max_tokens and require max_completion_tokens
-        const isReasoning = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.includes("gpt-5") || modelId.includes("chatgpt-5");
+        const isReasoning = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4") || modelId.includes("gpt-5");
         const payload = { model: modelId, messages: [{ role: "user", content: "." }] };
         if (isReasoning) payload.max_completion_tokens = 1;
         else payload.max_tokens = 1;
