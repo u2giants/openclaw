@@ -373,7 +373,6 @@ const MODEL_CATALOG = [
   // ── Anthropic ──────────────────────────────────────────────────────────────
   { id: "anthropic/claude-sonnet-4-6",            label: "Claude Sonnet 4.6"      },
   { id: "anthropic/claude-haiku-4-5",             label: "Claude Haiku 4.5"       },
-  { id: "anthropic/claude-3-haiku-20240307",      label: "Claude Haiku 3"         },
 
   // ── OpenAI ─────────────────────────────────────────────────────────────────
   { id: "openai/gpt-5.4",                         label: "GPT-5.4"                },
