@@ -84,7 +84,9 @@ jobs:
           echo "Published ${IMAGE}:latest"
 
       - name: Trigger Coolify redeploy
-        if: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK != '' }}
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
+        if: env.COOLIFY_WEBHOOK != ''
         run: |
-          curl -fsSL --max-time 30 "${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}"
+          curl -fsSL --max-time 30 "$COOLIFY_WEBHOOK"
           echo "Coolify deploy triggered"
