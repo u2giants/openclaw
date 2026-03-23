@@ -328,12 +328,12 @@ if (ollamaUrl) {
 
 // ── Primary model selection (first available provider wins) ─────────────────
 const primaryCandidates = [
-  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-3-5-sonnet-20241022"],
+  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-sonnet-4-5"],
   [process.env.OPENAI_API_KEY,         "openai/gpt-4o"],
-  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-3-5-sonnet-20241022"],
+  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-sonnet-4-5"],
   [process.env.GEMINI_API_KEY,         "google/gemini-1.5-pro-latest"],
-  [opencodeKey,                        "opencode/claude-3-5-sonnet-20241022"],
-  [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-3-5-sonnet-20241022"],
+  [opencodeKey,                        "opencode/claude-sonnet-4-5"],
+  [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-sonnet-4-5"],
   [process.env.XAI_API_KEY,            "xai/grok-3"],
   [process.env.GROQ_API_KEY,           "groq/llama-3.3-70b-versatile"],
   [process.env.MISTRAL_API_KEY,        "mistral/mistral-large-latest"],
@@ -344,9 +344,9 @@ const primaryCandidates = [
   [process.env.MINIMAX_API_KEY,        "minimax/MiniMax-M2.1"],
   [process.env.SYNTHETIC_API_KEY,      "synthetic/hf:MiniMaxAI/MiniMax-M2.1"],
   [process.env.ZAI_API_KEY,            "zai/glm-4.7"],
-  [process.env.AI_GATEWAY_API_KEY,     "vercel-ai-gateway/anthropic/claude-3-5-sonnet-20241022"],
+  [process.env.AI_GATEWAY_API_KEY,     "vercel-ai-gateway/anthropic/claude-sonnet-4-5"],
   [process.env.XIAOMI_API_KEY,         "xiaomi/mimo-v2-flash"],
-  [process.env.AWS_ACCESS_KEY_ID,      "amazon-bedrock/anthropic.claude-3-5-sonnet-20241022-v1:0"],
+  [process.env.AWS_ACCESS_KEY_ID,      "amazon-bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0"],
   [ollamaUrl,                          "ollama/llama3.3"],
 ];
 if (process.env.OPENCLAW_PRIMARY_MODEL) {
