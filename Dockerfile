@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/coollabsio/openclaw-base:latest
+ARG BASE_IMAGE=ghcr.io/coollabsio/openclaw-base:2026.2.13
 
 FROM ${BASE_IMAGE}
 
