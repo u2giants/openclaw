@@ -82,3 +82,9 @@ jobs:
             "${IMAGE}:latest-amd64" \
             "${IMAGE}:latest-arm64"
           echo "Published ${IMAGE}:latest"
+
+      - name: Trigger Coolify redeploy
+        if: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK != '' }}
+        run: |
+          curl -fsSL --max-time 30 "${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}"
+          echo "Coolify deploy triggered"
