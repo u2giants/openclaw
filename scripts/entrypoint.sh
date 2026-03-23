@@ -248,22 +248,38 @@ cat > /usr/share/nginx/html/starting.html <<'STARTPAGE'
 </html>
 STARTPAGE
 
+# ── Nginx token injection: skip when GATEWAY_AUTH_MODE=none ──────────────────
+# With mode=none the gateway accepts all loopback connections without auth.
+# Injecting the GATEWAY_TOKEN would cause the gateway to treat the Control UI
+# WebSocket as a "shared-token" session and clear its declared scopes —
+# which is exactly the operator.read bug we're fixing.
+DOLLAR='$'
+if [ "${GATEWAY_AUTH_MODE:-token}" = "none" ]; then
+  OCW_TOKEN_MAPS=""
+  OCW_PROXY_PASS="proxy_pass http://127.0.0.1:${GATEWAY_PORT}${DOLLAR}uri${DOLLAR}is_args${DOLLAR}args;"
+  OCW_AUTH_HDR=""
+else
+  OCW_TOKEN_MAPS="map ${DOLLAR}arg_token ${DOLLAR}ocw_has_token {
+    ''      0;
+    default 1;
+}
+
+map \"${DOLLAR}ocw_has_token:${DOLLAR}args\" ${DOLLAR}ocw_proxy_args {
+    ~^1:    ${DOLLAR}args;
+    ~^0:.+  \"${DOLLAR}args&token=${GATEWAY_TOKEN}\";
+    default \"token=${GATEWAY_TOKEN}\";
+}"
+  OCW_PROXY_PASS="proxy_pass http://127.0.0.1:${GATEWAY_PORT}${DOLLAR}uri?${DOLLAR}ocw_proxy_args;"
+  OCW_AUTH_HDR="proxy_set_header Authorization \"Bearer ${GATEWAY_TOKEN}\";"
+fi
+
 cat > "$NGINX_CONF" <<NGINXEOF
 map \$http_upgrade \$connection_upgrade {
     default upgrade;
     ''      close;
 }
 
-map \$arg_token \$ocw_has_token {
-    ''      0;
-    default 1;
-}
-
-map "\$ocw_has_token:\$args" \$ocw_proxy_args {
-    ~^1:    \$args;
-    ~^0:.+  "\$args&token=${GATEWAY_TOKEN}";
-    default "token=${GATEWAY_TOKEN}";
-}
+${OCW_TOKEN_MAPS}
 
 server {
     listen ${PORT:-8080} default_server;
@@ -288,8 +304,8 @@ server {
     location / {
         ${AUTH_BLOCK}
 
-        proxy_pass http://127.0.0.1:${GATEWAY_PORT}\$uri?\$ocw_proxy_args;
-        proxy_set_header Authorization "Bearer ${GATEWAY_TOKEN}";
+        ${OCW_PROXY_PASS}
+        ${OCW_AUTH_HDR}
 
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
