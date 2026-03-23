@@ -27,13 +27,21 @@ To enable: uncomment the socket mount in `docker-compose.yml`:
 
 ---
 
-## Control UI `operator.read` scope patch
+## Control UI `operator.read` scope fix
 
-`entrypoint.sh` includes a startup patch that adds `"operator.read"` to the Control UI's WebSocket scope bundle. This works around a known openclaw bug where the compiled Control UI JS only requests `["operator.admin","operator.approvals","operator.pairing"]` scopes, causing all status/config RPCs to fail with `missing scope: operator.read`.
+### `GATEWAY_AUTH_MODE` (optional string, default: `token`)
 
-Upstream fix: openclaw PRs #46711 / #47828 (unmerged as of 2026-03-23).
+Set to `none` to run the gateway without token auth (nginx handles HTTP basic auth instead). **Required in openclaw v2026.3.22+** to fix `GatewayRequestError: missing scope: operator.read` in the Control UI.
 
-The patch runs `grep`/`sed` on the compiled JS files under `/opt/openclaw/app` before the gateway starts. Remove the `_patch_scopes` block from `entrypoint.sh` once the upstream fix lands and the base image is updated.
+**Why**: v2026.3.22 clears self-declared scopes for trusted-proxy sessions (nginx → gateway) when `auth.mode=token`. With `mode=none` the gateway honours the Control UI's declared scopes (including `operator.read`) because no proxy-authentication security restriction applies.
+
+**Security**: safe when `gateway.bind=loopback` (default) — only nginx, which enforces HTTP basic auth, can reach the gateway port.
+
+Maps to `gateway.auth.mode` in `openclaw.json`. When set to `none`, the `OPENCLAW_GATEWAY_TOKEN` value is still used by nginx but not written to the gateway config.
+
+`entrypoint.sh` also includes a `_patch_scopes()` call as a belt-and-suspenders fix for older images where the Control UI JS itself was missing `"operator.read"` (openclaw PRs #46711/#47828). Safe to leave in place.
+
+---
 
 ---
 

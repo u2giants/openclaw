@@ -86,7 +86,15 @@ config.gateway.trustedProxies = ["0.0.0.0/0", "::/0"];
 
 // Gateway token: required via OPENCLAW_GATEWAY_TOKEN env var (enforced by entrypoint.sh)
 const token = (process.env.OPENCLAW_GATEWAY_TOKEN || "").trim();
-if (token) {
+// GATEWAY_AUTH_MODE=none keeps the gateway open on loopback (nginx handles HTTP basic auth).
+// Required in v2026.3.22+: gateway.auth.mode=token causes the gateway to clear declared
+// scopes for trusted-proxy sessions, breaking Control UI operator.read access.
+// See: openclaw v2026.3.22 release notes — "Gateway/websocket pairing bypass for disabled auth"
+const authMode = (process.env.GATEWAY_AUTH_MODE || "").trim().toLowerCase() || "token";
+if (authMode === "none") {
+  ensure(config, "gateway", "auth");
+  config.gateway.auth.mode = "none";
+} else if (token) {
   ensure(config, "gateway", "auth");
   config.gateway.auth.mode = "token";
   config.gateway.auth.token = token;
