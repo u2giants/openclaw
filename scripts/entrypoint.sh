@@ -491,7 +491,7 @@ _write_minimal_conf() {
       gateway: {
         port: parseInt(process.env.OPENCLAW_GATEWAY_PORT || '18789'),
         mode: 'local',
-        auth: { mode: 'token', token: process.env.OPENCLAW_GATEWAY_TOKEN || '' },
+        auth: { mode: 'token', token: process.env.OPENCLAW_GATEWAY_TOKEN || '', scopes: ['*'] },
         bind: 'loopback',
         controlUi: { allowInsecureAuth: true, dangerouslyDisableDeviceAuth: true, enabled: true }
       },
