@@ -27,6 +27,16 @@ To enable: uncomment the socket mount in `docker-compose.yml`:
 
 ---
 
+## Control UI `operator.read` scope patch
+
+`entrypoint.sh` includes a startup patch that adds `"operator.read"` to the Control UI's WebSocket scope bundle. This works around a known openclaw bug where the compiled Control UI JS only requests `["operator.admin","operator.approvals","operator.pairing"]` scopes, causing all status/config RPCs to fail with `missing scope: operator.read`.
+
+Upstream fix: openclaw PRs #46711 / #47828 (unmerged as of 2026-03-23).
+
+The patch runs `grep`/`sed` on the compiled JS files under `/opt/openclaw/app` before the gateway starts. Remove the `_patch_scopes` block from `entrypoint.sh` once the upstream fix lands and the base image is updated.
+
+---
+
 ## Channel env var pattern
 
 Each channel in `scripts/configure.js` maps `CHANNEL_*` env vars → `channels.<name>.*` in `openclaw.json`.

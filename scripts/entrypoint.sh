@@ -507,6 +507,28 @@ _write_minimal_conf() {
   " "$primary" "$OCW_CONF" || true
 }
 
+# ── Patch Control UI scope bug (workaround for unmerged openclaw PRs #46711/#47828) ──
+# The Control UI WebSocket client only requests ["operator.admin","operator.approvals",
+# "operator.pairing"] but not "operator.read", which is required by the gateway for
+# status/config RPCs. Patch the compiled JS to add "operator.read" before gateway start.
+# Remove this block once the upstream fix lands and the base image is updated.
+_patch_scopes() {
+  local found=0
+  # Search without spaces (minified) and with spaces (pretty-printed)
+  while IFS= read -r f; do
+    sed -i \
+      's/"operator\.admin","operator\.approvals","operator\.pairing"/"operator.read","operator.admin","operator.approvals","operator.pairing"/g;
+       s/"operator\.admin", "operator\.approvals", "operator\.pairing"/"operator.read", "operator.admin", "operator.approvals", "operator.pairing"/g' \
+      "$f" 2>/dev/null && found=$((found+1))
+    echo "[entrypoint] patched operator.read scope in $(basename "$f")"
+  done < <(grep -rl --include="*.js" '"operator\.admin"' /opt/openclaw/app 2>/dev/null \
+           | xargs grep -l '"operator\.approvals"' 2>/dev/null \
+           | xargs grep -l '"operator\.pairing"' 2>/dev/null \
+           | head -10)
+  [ "$found" -eq 0 ] && echo "[entrypoint] scope patch: no matching JS files found (may already be fixed in this version)"
+}
+_patch_scopes
+
 echo "[entrypoint] starting openclaw gateway on port $GATEWAY_PORT..."
 cd /opt/openclaw/app
 
