@@ -565,8 +565,7 @@ while true; do
   _rotate_log
   _start=$(date +%s)
   echo "--- gateway start $(date -u '+%Y-%m-%dT%H:%M:%SZ') ---" >> "$GATEWAY_LOG"
-  openclaw gateway run >> "$GATEWAY_LOG" 2>&1
-  _code=$?
+  openclaw gateway run >> "$GATEWAY_LOG" 2>&1 && _code=0 || _code=$?
   _elapsed=$(( $(date +%s) - _start ))
 
   if [ $_elapsed -lt $FAST_CRASH_WINDOW ]; then
