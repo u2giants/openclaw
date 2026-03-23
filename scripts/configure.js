@@ -91,6 +91,7 @@ if (token) {
   ensure(config, "gateway", "auth");
   config.gateway.auth.mode = "token";
   config.gateway.auth.token = token;
+  config.gateway.auth.scopes = ["*"];
 }
 
 // Allow control UI without device pairing (only set defaults, don't overwrite)
@@ -98,9 +99,7 @@ ensure(config, "gateway", "controlUi");
 if (config.gateway.controlUi.allowInsecureAuth === undefined) {
   config.gateway.controlUi.allowInsecureAuth = true;
 }
-if (config.gateway.controlUi.dangerouslyDisableDeviceAuth === undefined) {
-  config.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
-}
+config.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
 if (config.gateway.controlUi.enabled === undefined) {
   config.gateway.controlUi.enabled = true;
 }

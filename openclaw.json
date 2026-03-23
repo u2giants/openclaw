@@ -1,0 +1,76 @@
+{
+  "browser": {
+    "evaluateEnabled": true,
+    "cdpUrl": "http://browser:9223",
+    "defaultProfile": "openclaw"
+  },
+  "models": {
+    "providers": {}
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "fallbacks": [
+          "anthropic/claude-sonnet-4-6",
+          "anthropic/claude-haiku-4-5",
+          "anthropic/gemini-flash-latest",
+          "openai/gpt-4o",
+          "openai/gpt-4o-mini",
+          "openai/o1",
+          "openai/o3-mini",
+          "openai/gpt-5.4",
+          "openai/gpt-5.4-mini",
+          "openai/gpt-5.4-nano",
+          "google/gemini-2.5-pro",
+          "google/gemini-2.5-flash",
+          "google/gemini-3.1-pro-preview",
+          "google/gemini-3.1-flash-lite-preview",
+          "google/gemini-3.1-flash-image-preview",
+          "google/gemini-3-flash-preview"
+        ],
+        "primary": "anthropic/claude-sonnet-4-5"
+      },
+      "workspace": "/data/workspace"
+    }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true
+  },
+  "channels": {
+    "whatsapp": {},
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "botToken": "8703635117:AAHMEr5A_S5PDj8dlidDFslnwzH5BPVfcsk",
+      "groupPolicy": "allowlist"
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "controlUi": {
+      "enabled": true,
+      "allowedOrigins": [
+        "http://72.62.86.49:8080",
+        "https://claw.designflow.app"
+      ],
+      "allowInsecureAuth": true,
+      "dangerouslyDisableDeviceAuth": true
+    },
+    "auth": {
+      "mode": "token",
+      "token": "Albert2026Token"
+    },
+    "trustedProxies": [
+      "0.0.0.0/0",
+      "::/0"
+    ]
+  },
+  "meta": {
+    "lastTouchedVersion": "2026.3.22",
+    "lastTouchedAt": "2026-03-23T21:06:32.134Z"
+  }
+}
