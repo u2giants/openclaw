@@ -323,7 +323,10 @@ server {
     location /browser/ {
         ${AUTH_BLOCK}
 
-        proxy_pass http://browser:3000/;
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set \$browser_upstream "http://browser:3000";
+        rewrite ^/browser/(.*) /\$1 break;
+        proxy_pass \$browser_upstream;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
