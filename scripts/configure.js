@@ -36,6 +36,7 @@ function deepMerge(target, source) {
 }
 
 // Load config: custom JSON (base) → existing persisted config → env vars (on top)
+async function main() {
 let config = {};
 
 // 1. Load user-provided custom config as base (if mounted)
@@ -367,26 +368,35 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
 }
 
 // ── Model catalog ────────────────────────────────────────────────────────────
-// These are the model IDs exactly as each provider's API expects them.
-// Last verified: 2026-03. Update when Anthropic/OpenAI/Google retire models.
 const MODEL_CATALOG = [
   // ── Anthropic ──────────────────────────────────────────────────────────────
+  { id: "anthropic/claude-3-5-sonnet-latest",     label: "Claude 3.5 Sonnet"      },
+  { id: "anthropic/claude-3-5-haiku-latest",      label: "Claude 3.5 Haiku"       },
   { id: "anthropic/claude-sonnet-4-6",            label: "Claude Sonnet 4.6"      },
   { id: "anthropic/claude-haiku-4-5",             label: "Claude Haiku 4.5"       },
+  { id: "anthropic/gemini-flash-latest",          label: "Gemini Flash (alias)"   },
 
   // ── OpenAI ─────────────────────────────────────────────────────────────────
+  { id: "openai/gpt-4o",                          label: "GPT-4o"                 },
+  { id: "openai/gpt-4o-mini",                     label: "GPT-4o Mini"            },
+  { id: "openai/o1",                              label: "o1"                     },
+  { id: "openai/o3-mini",                         label: "o3-mini"                },
   { id: "openai/gpt-5.4",                         label: "GPT-5.4"                },
   { id: "openai/gpt-5.4-mini",                    label: "GPT-5.4 Mini"           },
   { id: "openai/gpt-5.4-nano",                    label: "GPT-5.4 Nano"           },
 
   // ── Google ─────────────────────────────────────────────────────────────────
+  { id: "google/gemini-1.5-pro-latest",           label: "Gemini 1.5 Pro"         },
+  { id: "google/gemini-1.5-flash-latest",         label: "Gemini 1.5 Flash"       },
+  { id: "google/gemini-2.5-pro",                  label: "Gemini 2.5 Pro"         },
+  { id: "google/gemini-2.5-flash",                label: "Gemini 2.5 Flash"       },
   { id: "google/gemini-3.1-pro-preview",          label: "Gemini 3.1 Pro Preview"        },
   { id: "google/gemini-3.1-flash-lite-preview",   label: "Gemini 3.1 Flash Lite Preview" },
   { id: "google/gemini-3.1-flash-image-preview",  label: "Gemini 3.1 Flash Image Preview"},
   { id: "google/gemini-3-flash-preview",          label: "Gemini 3 Flash Preview"        },
 ];
 
-config.agents.defaults.model.fallbacks = MODEL_CATALOG.map(m => m.id);
+config.agents.defaults.model.fallbacks = [];
 
 // ── Model health probe (async, runs after gateway starts) ───────────────────
 // Tests each model with a tiny API call, writes results to model-health.json.
@@ -429,11 +439,25 @@ async function probeModels() {
     const [providerKey, ...rest] = id.split("/");
     const modelId = rest.join("/");
     let r;
-    try {
-      if (providerKey === "anthropic" && process.env.ANTHROPIC_API_KEY) {
-        r = await probe("anthropic", modelId,
-          { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-          { model: modelId, max_tokens: 1, messages: [{ role: "user", content: "." }] });
+    // DRY_RUN flag allows skipping actual HTTP probes for testing
+    if (process.env.DRY_RUN === "true") {
+      let hasKey = false;
+      if (providerKey === "anthropic" && process.env.ANTHROPIC_API_KEY) hasKey = true;
+      if (providerKey === "openai" && process.env.OPENAI_API_KEY) hasKey = true;
+      if (providerKey === "google" && process.env.GEMINI_API_KEY) hasKey = true;
+      r = { ok: hasKey, status: hasKey ? 200 : 401, error: hasKey ? null : "dry run auth missing" };
+    } else {
+      try {
+        if (providerKey === "anthropic" && process.env.ANTHROPIC_API_KEY) {
+          if (modelId.includes("gemini") && process.env.GEMINI_API_KEY) {
+            r = await probe("google", modelId,
+              { "x-goog-api-key": process.env.GEMINI_API_KEY },
+              { contents: [{ parts: [{ text: "." }] }], generationConfig: { maxOutputTokens: 1 } });
+          } else {
+            r = await probe("anthropic", modelId,
+              { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+              { model: modelId, max_tokens: 1, messages: [{ role: "user", content: "." }] });
+          }
       } else if (providerKey === "openai" && process.env.OPENAI_API_KEY) {
         // OpenAI reasoning models (o1, o3, gpt-5) reject max_tokens and require max_completion_tokens
         const isReasoning = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4") || modelId.includes("gpt-5");
@@ -451,6 +475,7 @@ async function probeModels() {
         r = { ok: false, error: "no api key" };
       }
     } catch(e) { r = { ok: false, error: String(e) }; }
+    } // <-- Added missing bracket to close 'else {' from DRY_RUN check
     
     // Treat invalid_request_error as OK for reasoning models if they complain about token limits,
     // because that proves the model exists. For Anthropic, 404 means model doesn't exist.
@@ -475,49 +500,10 @@ async function probeModels() {
   }, null, 2));
   console.log(`[model-probe] health written to ${HEALTH_FILE}`);
 
-  // Keep only verified-working models in fallbacks and EXPLICITLY register them
+  // Return only verified-working models
   const okResults = results.filter(r => r.ok);
-  if (okResults.length > 0) {
-    const live = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
-    if (!live.models) live.models = {};
-    if (!live.models.providers) live.models.providers = {};
-
-    live.agents.defaults.model.fallbacks = okResults.map(r => r.id);
-
-    // Group verified models by provider — only inject explicit config for custom
-    // providers. Built-in providers (anthropic, openai, google, etc.) must NOT
-    // have models.providers entries; those override native routing and cause
-    // wrong-provider errors (e.g. google models routed as anthropic/...).
-    const BUILTIN_PROVIDERS = new Set([
-      "anthropic", "openai", "google", "openrouter", "xai", "groq",
-      "mistral", "cerebras", "zai", "vercel-ai-gateway", "github-copilot",
-    ]);
-    const byProvider = {};
-    for (const r of okResults) {
-      const [providerKey, ...rest] = r.id.split("/");
-      const modelId = rest.join("/");
-      if (BUILTIN_PROVIDERS.has(providerKey)) continue; // native routing handles these
-      if (!byProvider[providerKey]) byProvider[providerKey] = [];
-      byProvider[providerKey].push({ id: modelId, name: r.label });
-    }
-
-    for (const [providerKey, models] of Object.entries(byProvider)) {
-      if (!live.models.providers[providerKey]) {
-         live.models.providers[providerKey] = {};
-      }
-      live.models.providers[providerKey].models = models;
-      console.log(`[model-probe] explicitly registered ${models.length} verified models for ${providerKey}`);
-    }
-
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(live, null, 2));
-    console.log(`[model-probe] live config updated with explicit model registrations`);
-  }
+  return okResults;
 }
-
-// Kick off the probe after a short delay to not block entrypoint startup
-setTimeout(() => probeModels().catch(e => console.error("[model-probe] error:", e)), 5000);
-
-
 
 // ── Deepgram (audio transcription) ──────────────────────────────────────────
 if (process.env.DEEPGRAM_API_KEY) {
@@ -525,6 +511,7 @@ if (process.env.DEEPGRAM_API_KEY) {
   ensure(config, "tools", "media", "audio");
   config.tools.media.audio.enabled = true;
   config.tools.media.audio.models = [{ provider: "deepgram", model: "nova-3" }];
+  console.log("[configure] Deepgram transcription configured (from custom JSON)");
 } else if (config.tools?.media?.audio) {
   console.log("[configure] Deepgram transcription configured (from custom JSON)");
 }
@@ -790,8 +777,20 @@ if (!hasProvider) {
   process.exit(1);
 }
 
-// ── Write config ────────────────────────────────────────────────────────────
+// ── Final Config Write ──────────────────────────────────────────────────────
+  
+  console.log("[configure] writing config before probing...");
+  fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true });
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  
+  // Now run synchronous probe to update fallbacks
+  console.log("[configure] starting synchronous probe...");
+  const okResults = await probeModels();
+  config.agents.defaults.model.fallbacks = okResults.map(r => r.id);
+  
+  // Re-write definitive config with verified fallbacks
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  console.log("[configure] definitive config written to", CONFIG_FILE);
+}
 
-fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true });
-fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-console.log("[configure] config written to", CONFIG_FILE);
+main().catch(e => { console.error("[configure] error:", e); process.exit(1); });
