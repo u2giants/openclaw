@@ -89,5 +89,6 @@ jobs:
           COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
         if: env.COOLIFY_WEBHOOK != ''
         run: |
-          curl -fsSL --max-time 30 "$COOLIFY_WEBHOOK"
+          WEBHOOK_URL=$(echo "$COOLIFY_WEBHOOK" | tr -d '[:space:]')
+          curl -fsSL --max-time 30 "$WEBHOOK_URL"
           echo "Coolify deploy triggered"
