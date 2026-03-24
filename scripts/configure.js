@@ -339,8 +339,8 @@ if (ollamaUrl) {
 
 // ── Primary model selection (first available provider wins) ─────────────────
 const primaryCandidates = [
-  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-sonnet-4-6"],
-  [process.env.OPENAI_API_KEY,         "openai/gpt-5.4"],
+  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-haiku-4-5"],
+  [process.env.OPENAI_API_KEY,         "openai/gpt-5.4-mini"],
   [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-sonnet-4-6"],
   [process.env.GEMINI_API_KEY,         "google/gemini-3.1-pro-preview"],
   [opencodeKey,                        "opencode/claude-sonnet-4-5"],
