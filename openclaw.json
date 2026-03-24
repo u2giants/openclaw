@@ -10,17 +10,6 @@
   "agents": {
     "defaults": {
       "model": {
-        "list": [
-          "anthropic/claude-sonnet-4-6",
-          "anthropic/claude-haiku-4-5",
-          "openai/gpt-5.4",
-          "openai/gpt-5.4-mini",
-          "openai/gpt-5.4-nano",
-          "google/gemini-3.1-pro-preview",
-          "google/gemini-3-flash-preview",
-          "google/gemini-3.1-flash-lite-preview",
-          "google/gemini-3.1-flash-image-preview"
-        ],
         "fallbacks": [
           "anthropic/claude-sonnet-4-6",
           "anthropic/claude-haiku-4-5",
@@ -33,6 +22,17 @@
           "google/gemini-3.1-flash-image-preview"
         ],
         "primary": "openai/gpt-5.4-mini"
+      },
+      "models": {
+        "anthropic/claude-sonnet-4-6":           { "alias": "Claude Sonnet 4.6" },
+        "anthropic/claude-haiku-4-5":            { "alias": "Claude Haiku 4.5" },
+        "openai/gpt-5.4":                        { "alias": "GPT-5.4" },
+        "openai/gpt-5.4-mini":                   { "alias": "GPT-5.4 Mini" },
+        "openai/gpt-5.4-nano":                   { "alias": "GPT-5.4 Nano" },
+        "google/gemini-3.1-pro-preview":         { "alias": "Gemini 3.1 Pro" },
+        "google/gemini-3-flash-preview":         { "alias": "Gemini 3 Flash" },
+        "google/gemini-3.1-flash-lite-preview":  { "alias": "Gemini 3.1 Flash Lite" },
+        "google/gemini-3.1-flash-image-preview": { "alias": "Gemini 3.1 Flash Image" }
       },
       "workspace": "/data/workspace"
     }

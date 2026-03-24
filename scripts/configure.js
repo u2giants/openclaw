@@ -787,10 +787,13 @@ if (!hasProvider) {
   const okResults = await probeModels();
   const okIds = okResults.map(r => r.id);
   config.agents.defaults.model.fallbacks = okIds;
-  // Restrict the model picker to only the verified models (no gateway auto-discovery)
-  config.agents.defaults.model.list = okIds;
+  // Restrict the model picker: agents.defaults.models is the allowlist for the UI dropdown
+  config.agents.defaults.models = {};
+  for (const r of okResults) {
+    config.agents.defaults.models[r.id] = { alias: r.label };
+  }
 
-  // Re-write definitive config with verified fallbacks + list
+  // Re-write definitive config with verified fallbacks + models allowlist
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
   console.log("[configure] definitive config written to", CONFIG_FILE);
 }
