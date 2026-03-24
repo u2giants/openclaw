@@ -67,7 +67,7 @@ apt-get update \
 # docker commands. The Docker CLI is installed automatically on first start.
 _docker_sock="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 _docker_sock_path="${_docker_sock#unix://}"
-if [ -S "$_docker_sock_path" ] || [ -n "${DOCKER_HOST:-}" ]; then
+if [ -S "$_docker_sock_path" ]; then
   if ! command -v docker >/dev/null 2>&1; then
     echo "[entrypoint] Docker socket detected — installing Docker CLI..."
     apt-get update \
@@ -77,11 +77,10 @@ if [ -S "$_docker_sock_path" ] || [ -n "${DOCKER_HOST:-}" ]; then
   else
     echo "[entrypoint] Docker CLI already installed"
   fi
-  # Ensure the openclaw process can reach the socket
-  if [ -S "$_docker_sock_path" ]; then
-    chmod 666 "$_docker_sock_path" 2>/dev/null || true
-    echo "[entrypoint] Docker socket ready: $_docker_sock_path"
-  fi
+  chmod 666 "$_docker_sock_path" 2>/dev/null || true
+  echo "[entrypoint] Docker socket ready: $_docker_sock_path"
+else
+  [ -n "${DOCKER_HOST:-}" ] && echo "[entrypoint] DOCKER_HOST set but socket not found at $_docker_sock_path — skipping Docker CLI install"
 fi
 
 # ── Require OPENCLAW_GATEWAY_TOKEN ───────────────────────────────────────────
