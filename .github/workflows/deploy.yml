@@ -91,7 +91,10 @@ jobs:
         if: env.COOLIFY_WEBHOOK != ''
         run: |
           WEBHOOK_URL=$(echo "$COOLIFY_WEBHOOK" | tr -d '[:space:]')
-          curl -fsSL --max-time 30 -X POST \
+          if curl -fsSL --max-time 30 -X POST \
             -H "Authorization: Bearer $COOLIFY_TOKEN" \
-            "$WEBHOOK_URL"
-          echo "Coolify deploy triggered"
+            "$WEBHOOK_URL"; then
+            echo "Coolify deploy triggered"
+          else
+            echo "::warning::Coolify redeploy ping failed (port 8000 not publicly reachable) — redeploy manually in Coolify"
+          fi
