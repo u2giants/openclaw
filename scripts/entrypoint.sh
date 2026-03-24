@@ -394,10 +394,12 @@ fi
 # ── Start nginx ──────────────────────────────────────────────────────────────
 echo "[entrypoint] starting nginx on port ${PORT:-8080}..."
 nginx
+echo "post-nginx-step=lock-cleanup $(date -u '+%T')" > /usr/share/nginx/html/step.txt
 
 # ── Clean up stale lock files ────────────────────────────────────────────────
 rm -f /tmp/openclaw-gateway.lock 2>/dev/null || true
 rm -f "$STATE_DIR/gateway.lock" 2>/dev/null || true
+echo "post-nginx-step=auth-profiles $(date -u '+%T')" > /usr/share/nginx/html/step.txt
 
 # ── Remove cached auth for providers that are no longer configured ────────────
 # This prevents unconfigured providers (e.g. github-copilot, opencode) from
@@ -422,8 +424,9 @@ if [ -f "$AUTH_PROFILES" ]; then
     } catch (e) {
       console.log('[entrypoint] could not clean auth-profiles:', e.message);
     }
-  " "$AUTH_PROFILES"
+  " "$AUTH_PROFILES" || true
 fi
+echo "post-nginx-step=patch-scopes $(date -u '+%T')" > /usr/share/nginx/html/step.txt
 
 # ── Start openclaw gateway (with crash recovery) ─────────────────────────────
 # If the gateway crashes within FAST_CRASH_WINDOW seconds it's almost certainly
@@ -546,9 +549,11 @@ _patch_scopes() {
   [ "$found" -eq 0 ] && echo "[entrypoint] scope patch: no matching JS files found (may already be fixed in this version)"
 }
 _patch_scopes
+echo "post-nginx-step=cd-app $(date -u '+%T')" > /usr/share/nginx/html/step.txt
 
 echo "[entrypoint] starting openclaw gateway on port $GATEWAY_PORT..."
-cd /opt/openclaw/app
+cd /opt/openclaw/app || { echo "[entrypoint] ERROR: /opt/openclaw/app not found, aborting"; exit 1; }
+echo "post-nginx-step=gateway-loop $(date -u '+%T')" > /usr/share/nginx/html/step.txt
 
 # Log file for gateway crash output — viewable at /data/.openclaw/gateway.log
 GATEWAY_LOG="$STATE_DIR/gateway.log"
