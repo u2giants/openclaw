@@ -20,6 +20,7 @@ services:
       - BROWSER_EVALUATE_ENABLED=true
       - DOCKER_HOST=${DOCKER_HOST}
       - GATEWAY_AUTH_MODE=none
+      - OPENCLAW_PRIMARY_MODEL=${OPENCLAW_PRIMARY_MODEL:-google/gemini-3-flash-preview}
     volumes:
       - openclaw-data:/data
       # Uncomment to give openclaw agents access to the Docker API:

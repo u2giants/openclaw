@@ -2,6 +2,18 @@
 
 ## Gateway env vars
 
+### `OPENCLAW_PRIMARY_MODEL` (optional string)
+
+Sets the default model shown in the UI and used for new agents. **This is the only way to make the default model stick** — editing `openclaw.json` directly is overwritten by `configure.js` on every container start.
+
+Example: `OPENCLAW_PRIMARY_MODEL=google/gemini-3-flash-preview`
+
+Default in `docker-compose.yml`: `google/gemini-3-flash-preview`
+
+Maps to `agents.defaults.model.primary` in `openclaw.json`.
+
+---
+
 ### `GATEWAY_ALLOWED_ORIGINS` (CSV → array)
 
 Maps to `gateway.controlUi.allowedOrigins`. Allows the Control UI to be accessed from the listed origins (e.g. when behind a reverse proxy or Cloudflare Tunnel).
