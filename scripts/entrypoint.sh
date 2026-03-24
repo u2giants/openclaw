@@ -326,6 +326,12 @@ server {
         internal;
     }
 
+    location = /step.txt {
+        root /usr/share/nginx/html;
+        default_type text/plain;
+        add_header Cache-Control no-store;
+    }
+
     # Gateway crash log — auth-protected diagnostic endpoint
     location = /gateway.log {
         ${AUTH_BLOCK}
