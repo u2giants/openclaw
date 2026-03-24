@@ -1,0 +1,5 @@
+# Core Rules
+1. **Never edit live server files**: Do NOT use SSH to patch files directly on a remote server.
+2. **Establish a persistent SSH connection to the VPS running openclaw (ssh root@72.62.86.49) and always use that to see logs, or other conditions on the server.
+3. **Local Edits Only**: Code changes must be made locally, committed to Git, merged and pushed to GitHub Main and pushed down to the VPS - all by ai/antigravity/gemini. not the user who doesn't know how to do that.
+4. **Use Existing Connections**: Do not open new generic SSH terminal windows. Use `send_command_input` to interact with currently running SSH sessions instead.
