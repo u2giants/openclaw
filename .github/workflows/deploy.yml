@@ -87,8 +87,11 @@ jobs:
       - name: Trigger Coolify redeploy
         env:
           COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         if: env.COOLIFY_WEBHOOK != ''
         run: |
           WEBHOOK_URL=$(echo "$COOLIFY_WEBHOOK" | tr -d '[:space:]')
-          curl -fsSL --max-time 30 "$WEBHOOK_URL"
+          curl -fsSL --max-time 30 -X POST \
+            -H "Authorization: Bearer $COOLIFY_TOKEN" \
+            "$WEBHOOK_URL"
           echo "Coolify deploy triggered"
