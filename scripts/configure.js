@@ -380,19 +380,19 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
 // ── Model catalog ────────────────────────────────────────────────────────────
 const MODEL_CATALOG = [
   // ── Anthropic ──────────────────────────────────────────────────────────────
-  { id: "anthropic/claude-sonnet-4-6",            label: "Claude Sonnet 4.6"             },
-  { id: "anthropic/claude-haiku-4-5",             label: "Claude Haiku 4.5"              },
+  { id: "anthropic/claude-sonnet-4-6",            label: "sonnet 4.6 $3/$15"             },
+  { id: "anthropic/claude-haiku-4-5",             label: "haiku 4.5 $1/$5"               },
 
   // ── OpenAI ─────────────────────────────────────────────────────────────────
-  { id: "openai/gpt-5.4",                         label: "GPT-5.4"                       },
-  { id: "openai/gpt-5.4-mini",                    label: "GPT-5.4 Mini"                  },
-  { id: "openai/gpt-5.4-nano",                    label: "GPT-5.4 Nano"                  },
+  { id: "openai/gpt-5.4",                         label: "gpt 5.4 $2.50/$15"             },
+  { id: "openai/gpt-5.4-mini",                    label: "gpt 5.4 mini $0.75/$4.50"      },
+  { id: "openai/gpt-5.4-nano",                    label: "gpt 5.4 nano $0.20/$1.25"      },
 
   // ── Google ─────────────────────────────────────────────────────────────────
-  { id: "google/gemini-3.1-pro-preview",          label: "Gemini 3.1 Pro Preview"        },
-  { id: "google/gemini-3-flash-preview",          label: "Gemini 3 Flash Preview"        },
-  { id: "google/gemini-3.1-flash-lite-preview",   label: "Gemini 3.1 Flash Lite Preview" },
-  { id: "google/gemini-3.1-flash-image-preview",  label: "Gemini 3.1 Flash Image Preview"},
+  { id: "google/gemini-3.1-pro-preview",          label: "gem 3.2 pro $2/$12"            },
+  { id: "google/gemini-3-flash-preview",          label: "gem 3 flash $0.50/$3"          },
+  { id: "google/gemini-3.1-flash-lite-preview",   label: "gem 3.1 flash lite $0.25/$1.50"},
+  { id: "google/gemini-3.1-flash-image-preview",  label: "gem 3.1 flash image $0.50/$60" },
 ];
 
 config.agents.defaults.model.fallbacks = [];

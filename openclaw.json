@@ -24,15 +24,15 @@
         "primary": "openai/gpt-5.4-mini"
       },
       "models": {
-        "anthropic/claude-sonnet-4-6":           { "alias": "Claude Sonnet 4.6" },
-        "anthropic/claude-haiku-4-5":            { "alias": "Claude Haiku 4.5" },
-        "openai/gpt-5.4":                        { "alias": "GPT-5.4" },
-        "openai/gpt-5.4-mini":                   { "alias": "GPT-5.4 Mini" },
-        "openai/gpt-5.4-nano":                   { "alias": "GPT-5.4 Nano" },
-        "google/gemini-3.1-pro-preview":         { "alias": "Gemini 3.1 Pro" },
-        "google/gemini-3-flash-preview":         { "alias": "Gemini 3 Flash" },
-        "google/gemini-3.1-flash-lite-preview":  { "alias": "Gemini 3.1 Flash Lite" },
-        "google/gemini-3.1-flash-image-preview": { "alias": "Gemini 3.1 Flash Image" }
+        "anthropic/claude-sonnet-4-6":           { "alias": "sonnet 4.6 $3/$15" },
+        "anthropic/claude-haiku-4-5":            { "alias": "haiku 4.5 $1/$5" },
+        "openai/gpt-5.4":                        { "alias": "gpt 5.4 $2.50/$15" },
+        "openai/gpt-5.4-mini":                   { "alias": "gpt 5.4 mini $0.75/$4.50" },
+        "openai/gpt-5.4-nano":                   { "alias": "gpt 5.4 nano $0.20/$1.25" },
+        "google/gemini-3.1-pro-preview":         { "alias": "gem 3.2 pro $2/$12" },
+        "google/gemini-3-flash-preview":         { "alias": "gem 3 flash $0.50/$3" },
+        "google/gemini-3.1-flash-lite-preview":  { "alias": "gem 3.1 flash lite $0.25/$1.50" },
+        "google/gemini-3.1-flash-image-preview": { "alias": "gem 3.1 flash image $0.50/$60" }
       },
       "workspace": "/data/workspace"
     }
