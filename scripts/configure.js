@@ -339,10 +339,10 @@ if (ollamaUrl) {
 
 // ── Primary model selection (first available provider wins) ─────────────────
 const primaryCandidates = [
-  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-sonnet-4-5"],
-  [process.env.OPENAI_API_KEY,         "openai/gpt-4o"],
-  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-sonnet-4-5"],
-  [process.env.GEMINI_API_KEY,         "google/gemini-1.5-pro-latest"],
+  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-sonnet-4-6"],
+  [process.env.OPENAI_API_KEY,         "openai/gpt-5.4"],
+  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-sonnet-4-6"],
+  [process.env.GEMINI_API_KEY,         "google/gemini-3.1-pro-preview"],
   [opencodeKey,                        "opencode/claude-sonnet-4-5"],
   [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-sonnet-4-5"],
   [process.env.XAI_API_KEY,            "xai/grok-3"],
@@ -380,30 +380,19 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
 // ── Model catalog ────────────────────────────────────────────────────────────
 const MODEL_CATALOG = [
   // ── Anthropic ──────────────────────────────────────────────────────────────
-  { id: "anthropic/claude-3-5-sonnet-latest",     label: "Claude 3.5 Sonnet"      },
-  { id: "anthropic/claude-3-5-haiku-latest",      label: "Claude 3.5 Haiku"       },
-  { id: "anthropic/claude-sonnet-4-6",            label: "Claude Sonnet 4.6"      },
-  { id: "anthropic/claude-haiku-4-5",             label: "Claude Haiku 4.5"       },
-  { id: "anthropic/gemini-flash-latest",          label: "Gemini Flash (alias)"   },
+  { id: "anthropic/claude-sonnet-4-6",            label: "Claude Sonnet 4.6"             },
+  { id: "anthropic/claude-haiku-4-5",             label: "Claude Haiku 4.5"              },
 
   // ── OpenAI ─────────────────────────────────────────────────────────────────
-  { id: "openai/gpt-4o",                          label: "GPT-4o"                 },
-  { id: "openai/gpt-4o-mini",                     label: "GPT-4o Mini"            },
-  { id: "openai/o1",                              label: "o1"                     },
-  { id: "openai/o3-mini",                         label: "o3-mini"                },
-  { id: "openai/gpt-5.4",                         label: "GPT-5.4"                },
-  { id: "openai/gpt-5.4-mini",                    label: "GPT-5.4 Mini"           },
-  { id: "openai/gpt-5.4-nano",                    label: "GPT-5.4 Nano"           },
+  { id: "openai/gpt-5.4",                         label: "GPT-5.4"                       },
+  { id: "openai/gpt-5.4-mini",                    label: "GPT-5.4 Mini"                  },
+  { id: "openai/gpt-5.4-nano",                    label: "GPT-5.4 Nano"                  },
 
   // ── Google ─────────────────────────────────────────────────────────────────
-  { id: "google/gemini-1.5-pro-latest",           label: "Gemini 1.5 Pro"         },
-  { id: "google/gemini-1.5-flash-latest",         label: "Gemini 1.5 Flash"       },
-  { id: "google/gemini-2.5-pro",                  label: "Gemini 2.5 Pro"         },
-  { id: "google/gemini-2.5-flash",                label: "Gemini 2.5 Flash"       },
   { id: "google/gemini-3.1-pro-preview",          label: "Gemini 3.1 Pro Preview"        },
+  { id: "google/gemini-3-flash-preview",          label: "Gemini 3 Flash Preview"        },
   { id: "google/gemini-3.1-flash-lite-preview",   label: "Gemini 3.1 Flash Lite Preview" },
   { id: "google/gemini-3.1-flash-image-preview",  label: "Gemini 3.1 Flash Image Preview"},
-  { id: "google/gemini-3-flash-preview",          label: "Gemini 3 Flash Preview"        },
 ];
 
 config.agents.defaults.model.fallbacks = [];
