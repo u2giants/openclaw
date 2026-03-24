@@ -552,7 +552,9 @@ _patch_scopes() {
            | xargs grep -l '"operator\.approvals"' 2>/dev/null \
            | xargs grep -l '"operator\.pairing"' 2>/dev/null \
            | head -10)
-  [ "$found" -eq 0 ] && echo "[entrypoint] scope patch: no matching JS files found (may already be fixed in this version)"
+  if [ "$found" -eq 0 ]; then
+    echo "[entrypoint] scope patch: no matching JS files found (may already be fixed in this version)"
+  fi
 }
 _patch_scopes
 echo "post-nginx-step=cd-app $(date -u '+%T')" > /usr/share/nginx/html/step.txt
