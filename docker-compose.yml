@@ -19,6 +19,7 @@ services:
       - BROWSER_DEFAULT_PROFILE=openclaw
       - BROWSER_EVALUATE_ENABLED=true
       - DOCKER_HOST=${DOCKER_HOST}
+      - GATEWAY_AUTH_MODE=none
     volumes:
       - openclaw-data:/data
       # Uncomment to give openclaw agents access to the Docker API:
