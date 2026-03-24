@@ -785,9 +785,12 @@ if (!hasProvider) {
   // Now run synchronous probe to update fallbacks
   console.log("[configure] starting synchronous probe...");
   const okResults = await probeModels();
-  config.agents.defaults.model.fallbacks = okResults.map(r => r.id);
-  
-  // Re-write definitive config with verified fallbacks
+  const okIds = okResults.map(r => r.id);
+  config.agents.defaults.model.fallbacks = okIds;
+  // Restrict the model picker to only the verified models (no gateway auto-discovery)
+  config.agents.defaults.model.list = okIds;
+
+  // Re-write definitive config with verified fallbacks + list
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
   console.log("[configure] definitive config written to", CONFIG_FILE);
 }
