@@ -164,7 +164,7 @@ if [ -n "${OPENCLAW_PAIR_APPROVE:-}" ]; then
   PAIR_CODE=$(echo "$OPENCLAW_PAIR_APPROVE" | cut -d: -f2)
   echo "[entrypoint] approving pairing: $PAIR_CHANNEL $PAIR_CODE"
   cd /opt/openclaw/app
-  openclaw pairing approve "$PAIR_CHANNEL" "$PAIR_CODE" 2>&1 || true
+  timeout 20 openclaw pairing approve "$PAIR_CHANNEL" "$PAIR_CODE" 2>&1 || true
 fi
 
 # ── Read hooks path from generated config (if hooks enabled) ─────────────────
