@@ -6,6 +6,7 @@ name: Deploy Final Image
 # the auto-update workflow) so this build takes ~1 minute instead of ~20.
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -82,3 +83,12 @@ jobs:
             "${IMAGE}:latest-amd64" \
             "${IMAGE}:latest-arm64"
           echo "Published ${IMAGE}:latest"
+
+      - name: Trigger Coolify redeploy
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
+        if: env.COOLIFY_WEBHOOK != ''
+        run: |
+          WEBHOOK_URL=$(echo "$COOLIFY_WEBHOOK" | tr -d '[:space:]')
+          curl -fsSL --max-time 30 "$WEBHOOK_URL"
+          echo "Coolify deploy triggered"

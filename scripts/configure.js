@@ -86,7 +86,15 @@ config.gateway.trustedProxies = ["0.0.0.0/0", "::/0"];
 
 // Gateway token: required via OPENCLAW_GATEWAY_TOKEN env var (enforced by entrypoint.sh)
 const token = (process.env.OPENCLAW_GATEWAY_TOKEN || "").trim();
-if (token) {
+// GATEWAY_AUTH_MODE=none keeps the gateway open on loopback (nginx handles HTTP basic auth).
+// Required in v2026.3.22+: gateway.auth.mode=token causes the gateway to clear declared
+// scopes for trusted-proxy sessions, breaking Control UI operator.read access.
+// See: openclaw v2026.3.22 release notes — "Gateway/websocket pairing bypass for disabled auth"
+const authMode = (process.env.GATEWAY_AUTH_MODE || "").trim().toLowerCase() || "token";
+if (authMode === "none") {
+  ensure(config, "gateway", "auth");
+  config.gateway.auth.mode = "none";
+} else if (token) {
   ensure(config, "gateway", "auth");
   config.gateway.auth.mode = "token";
   config.gateway.auth.token = token;
@@ -328,12 +336,12 @@ if (ollamaUrl) {
 
 // ── Primary model selection (first available provider wins) ─────────────────
 const primaryCandidates = [
-  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-3-5-sonnet-20241022"],
+  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-sonnet-4-5"],
   [process.env.OPENAI_API_KEY,         "openai/gpt-4o"],
-  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-3-5-sonnet-20241022"],
+  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-sonnet-4-5"],
   [process.env.GEMINI_API_KEY,         "google/gemini-1.5-pro-latest"],
-  [opencodeKey,                        "opencode/claude-3-5-sonnet-20241022"],
-  [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-3-5-sonnet-20241022"],
+  [opencodeKey,                        "opencode/claude-sonnet-4-5"],
+  [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-sonnet-4-5"],
   [process.env.XAI_API_KEY,            "xai/grok-3"],
   [process.env.GROQ_API_KEY,           "groq/llama-3.3-70b-versatile"],
   [process.env.MISTRAL_API_KEY,        "mistral/mistral-large-latest"],
@@ -344,9 +352,9 @@ const primaryCandidates = [
   [process.env.MINIMAX_API_KEY,        "minimax/MiniMax-M2.1"],
   [process.env.SYNTHETIC_API_KEY,      "synthetic/hf:MiniMaxAI/MiniMax-M2.1"],
   [process.env.ZAI_API_KEY,            "zai/glm-4.7"],
-  [process.env.AI_GATEWAY_API_KEY,     "vercel-ai-gateway/anthropic/claude-3-5-sonnet-20241022"],
+  [process.env.AI_GATEWAY_API_KEY,     "vercel-ai-gateway/anthropic/claude-sonnet-4-5"],
   [process.env.XIAOMI_API_KEY,         "xiaomi/mimo-v2-flash"],
-  [process.env.AWS_ACCESS_KEY_ID,      "amazon-bedrock/anthropic.claude-3-5-sonnet-20241022-v1:0"],
+  [process.env.AWS_ACCESS_KEY_ID,      "amazon-bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0"],
   [ollamaUrl,                          "ollama/llama3.3"],
 ];
 if (process.env.OPENCLAW_PRIMARY_MODEL) {
@@ -371,35 +379,19 @@ if (process.env.OPENCLAW_PRIMARY_MODEL) {
 // Last verified: 2026-03. Update when Anthropic/OpenAI/Google retire models.
 const MODEL_CATALOG = [
   // ── Anthropic ──────────────────────────────────────────────────────────────
-  { id: "anthropic/claude-opus-4-5-20251101",     label: "Claude Opus 4.5"        },
-  { id: "anthropic/claude-sonnet-4-5-20250929",   label: "Claude Sonnet 4.5"      },
-  { id: "anthropic/claude-haiku-4-5-20251001",    label: "Claude Haiku 4.5"       },
-  { id: "anthropic/claude-opus-4-5",              label: "Claude Opus 4.5 (alias)"   },
-  { id: "anthropic/claude-sonnet-4-5",            label: "Claude Sonnet 4.5 (alias)" },
-  { id: "anthropic/claude-haiku-4-5",             label: "Claude Haiku 4.5 (alias)"  },
-  { id: "anthropic/sonnet-4.6",                   label: "Sonnet 4.6"                },
-  { id: "anthropic/haiku-4.6",                    label: "Haiku 4.6"                 },
-  { id: "anthropic/claude-3-5-sonnet-20241022",   label: "Claude 3.5 Sonnet"         },
-  { id: "anthropic/claude-3-opus-20240229",      label: "Claude 3 Opus"             },
-  { id: "anthropic/claude-3-haiku-20240307",     label: "Claude 3 Haiku"            },
+  { id: "anthropic/claude-sonnet-4-6",            label: "Claude Sonnet 4.6"      },
+  { id: "anthropic/claude-haiku-4-5",             label: "Claude Haiku 4.5"       },
 
   // ── OpenAI ─────────────────────────────────────────────────────────────────
-  { id: "openai/gpt-4o",                          label: "GPT-4o"                 },
-  { id: "openai/gpt-4o-mini",                     label: "GPT-4o Mini"            },
-  { id: "openai/o1",                              label: "o1"                     },
-  { id: "openai/o3",                              label: "o3"                     },
-  { id: "openai/o3-mini",                         label: "o3-mini"                },
-  { id: "openai/gpt-5",                           label: "GPT-5"                  },
-  { id: "openai/gpt-5-mini",                      label: "GPT-5 Mini"             },
-  { id: "openai/chatgpt-5.4",                     label: "ChatGPT 5.4"            },
-  { id: "openai/chatgpt-5-mini",                  label: "ChatGPT 5 Mini"         },
+  { id: "openai/gpt-5.4",                         label: "GPT-5.4"                },
+  { id: "openai/gpt-5.4-mini",                    label: "GPT-5.4 Mini"           },
+  { id: "openai/gpt-5.4-nano",                    label: "GPT-5.4 Nano"           },
 
   // ── Google ─────────────────────────────────────────────────────────────────
-  { id: "google/gemini-2.5-pro",                  label: "Gemini 2.5 Pro"         },
-  { id: "google/gemini-2.5-flash",                label: "Gemini 2.5 Flash"       },
-  { id: "google/gemini-2.0-flash",                label: "Gemini 2.0 Flash"       },
-  { id: "google/gemini-flash-latest",             label: "Gemini Flash Latest"    },
-  { id: "google/gemini-3.1",                      label: "Gemini 3.1"             },
+  { id: "google/gemini-3.1-pro-preview",          label: "Gemini 3.1 Pro Preview"        },
+  { id: "google/gemini-3.1-flash-lite-preview",   label: "Gemini 3.1 Flash Lite Preview" },
+  { id: "google/gemini-3.1-flash-image-preview",  label: "Gemini 3.1 Flash Image Preview"},
+  { id: "google/gemini-3-flash-preview",          label: "Gemini 3 Flash Preview"        },
 ];
 
 config.agents.defaults.model.fallbacks = MODEL_CATALOG.map(m => m.id);
@@ -452,7 +444,7 @@ async function probeModels() {
           { model: modelId, max_tokens: 1, messages: [{ role: "user", content: "." }] });
       } else if (providerKey === "openai" && process.env.OPENAI_API_KEY) {
         // OpenAI reasoning models (o1, o3, gpt-5) reject max_tokens and require max_completion_tokens
-        const isReasoning = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.includes("gpt-5") || modelId.includes("chatgpt-5");
+        const isReasoning = modelId.startsWith("o1") || modelId.startsWith("o3") || modelId.startsWith("o4") || modelId.includes("gpt-5");
         const payload = { model: modelId, messages: [{ role: "user", content: "." }] };
         if (isReasoning) payload.max_completion_tokens = 1;
         else payload.max_tokens = 1;

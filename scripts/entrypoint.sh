@@ -248,22 +248,38 @@ cat > /usr/share/nginx/html/starting.html <<'STARTPAGE'
 </html>
 STARTPAGE
 
+# ── Nginx token injection: skip when GATEWAY_AUTH_MODE=none ──────────────────
+# With mode=none the gateway accepts all loopback connections without auth.
+# Injecting the GATEWAY_TOKEN would cause the gateway to treat the Control UI
+# WebSocket as a "shared-token" session and clear its declared scopes —
+# which is exactly the operator.read bug we're fixing.
+DOLLAR='$'
+if [ "${GATEWAY_AUTH_MODE:-token}" = "none" ]; then
+  OCW_TOKEN_MAPS=""
+  OCW_PROXY_PASS="proxy_pass http://127.0.0.1:${GATEWAY_PORT}${DOLLAR}uri${DOLLAR}is_args${DOLLAR}args;"
+  OCW_AUTH_HDR=""
+else
+  OCW_TOKEN_MAPS="map ${DOLLAR}arg_token ${DOLLAR}ocw_has_token {
+    ''      0;
+    default 1;
+}
+
+map \"${DOLLAR}ocw_has_token:${DOLLAR}args\" ${DOLLAR}ocw_proxy_args {
+    ~^1:    ${DOLLAR}args;
+    ~^0:.+  \"${DOLLAR}args&token=${GATEWAY_TOKEN}\";
+    default \"token=${GATEWAY_TOKEN}\";
+}"
+  OCW_PROXY_PASS="proxy_pass http://127.0.0.1:${GATEWAY_PORT}${DOLLAR}uri?${DOLLAR}ocw_proxy_args;"
+  OCW_AUTH_HDR="proxy_set_header Authorization \"Bearer ${GATEWAY_TOKEN}\";"
+fi
+
 cat > "$NGINX_CONF" <<NGINXEOF
 map \$http_upgrade \$connection_upgrade {
     default upgrade;
     ''      close;
 }
 
-map \$arg_token \$ocw_has_token {
-    ''      0;
-    default 1;
-}
-
-map "\$ocw_has_token:\$args" \$ocw_proxy_args {
-    ~^1:    \$args;
-    ~^0:.+  "\$args&token=${GATEWAY_TOKEN}";
-    default "token=${GATEWAY_TOKEN}";
-}
+${OCW_TOKEN_MAPS}
 
 server {
     listen ${PORT:-8080} default_server;
@@ -288,8 +304,8 @@ server {
     location / {
         ${AUTH_BLOCK}
 
-        proxy_pass http://127.0.0.1:${GATEWAY_PORT}\$uri?\$ocw_proxy_args;
-        proxy_set_header Authorization "Bearer ${GATEWAY_TOKEN}";
+        ${OCW_PROXY_PASS}
+        ${OCW_AUTH_HDR}
 
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -507,6 +523,28 @@ _write_minimal_conf() {
   " "$primary" "$OCW_CONF" || true
 }
 
+# ── Patch Control UI scope bug (workaround for unmerged openclaw PRs #46711/#47828) ──
+# The Control UI WebSocket client only requests ["operator.admin","operator.approvals",
+# "operator.pairing"] but not "operator.read", which is required by the gateway for
+# status/config RPCs. Patch the compiled JS to add "operator.read" before gateway start.
+# Remove this block once the upstream fix lands and the base image is updated.
+_patch_scopes() {
+  local found=0
+  # Search without spaces (minified) and with spaces (pretty-printed)
+  while IFS= read -r f; do
+    sed -i \
+      's/"operator\.admin","operator\.approvals","operator\.pairing"/"operator.read","operator.admin","operator.approvals","operator.pairing"/g;
+       s/"operator\.admin", "operator\.approvals", "operator\.pairing"/"operator.read", "operator.admin", "operator.approvals", "operator.pairing"/g' \
+      "$f" 2>/dev/null && found=$((found+1))
+    echo "[entrypoint] patched operator.read scope in $(basename "$f")"
+  done < <(grep -rl --include="*.js" '"operator\.admin"' /opt/openclaw/app 2>/dev/null \
+           | xargs grep -l '"operator\.approvals"' 2>/dev/null \
+           | xargs grep -l '"operator\.pairing"' 2>/dev/null \
+           | head -10)
+  [ "$found" -eq 0 ] && echo "[entrypoint] scope patch: no matching JS files found (may already be fixed in this version)"
+}
+_patch_scopes
+
 echo "[entrypoint] starting openclaw gateway on port $GATEWAY_PORT..."
 cd /opt/openclaw/app
 
@@ -527,8 +565,7 @@ while true; do
   _rotate_log
   _start=$(date +%s)
   echo "--- gateway start $(date -u '+%Y-%m-%dT%H:%M:%SZ') ---" >> "$GATEWAY_LOG"
-  openclaw gateway run >> "$GATEWAY_LOG" 2>&1
-  _code=$?
+  openclaw gateway run >> "$GATEWAY_LOG" 2>&1 && _code=0 || _code=$?
   _elapsed=$(( $(date +%s) - _start ))
 
   if [ $_elapsed -lt $FAST_CRASH_WINDOW ]; then
