@@ -99,7 +99,10 @@ if (authMode === "none") {
   ensure(config, "gateway", "auth");
   config.gateway.auth.mode = "token";
   config.gateway.auth.token = token;
-  config.gateway.auth.scopes = ["*"];
+}
+// Remove gateway.auth.scopes — not a valid openclaw config key (causes "Unrecognized key" crash)
+if (config.gateway && config.gateway.auth) {
+  delete config.gateway.auth.scopes;
 }
 
 // Allow control UI without device pairing (only set defaults, don't overwrite)
