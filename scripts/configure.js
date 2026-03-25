@@ -429,6 +429,7 @@ async function probeModels() {
     });
   }
 
+  const MODEL_CATALOG = modelRegistry.models.map(m => ({ id: registryModelToGatewayId(m), label: m.displayName }));
   for (const { id, label } of MODEL_CATALOG) {
     const [providerKey, ...rest] = id.split("/");
     const modelId = rest.join("/");

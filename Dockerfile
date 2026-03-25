@@ -14,6 +14,7 @@ RUN apt-get update \
 RUN rm -f /etc/nginx/sites-enabled/default
 
 COPY scripts/ /app/scripts/
+COPY config/ /app/config/
 RUN chmod +x /app/scripts/*.sh
 
 ENV NPM_CONFIG_PREFIX="/data/npm-global" \
