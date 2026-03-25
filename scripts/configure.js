@@ -11,6 +11,17 @@ const STATE_DIR = (process.env.OPENCLAW_STATE_DIR || "/data/.openclaw").replace(
 const WORKSPACE_DIR = (process.env.OPENCLAW_WORKSPACE_DIR || "/data/workspace").replace(/\/+$/, "");
 const CONFIG_FILE = process.env.OPENCLAW_CONFIG_PATH || path.join(STATE_DIR, "openclaw.json");
 const CUSTOM_CONFIG = process.env.OPENCLAW_CUSTOM_CONFIG || "/app/config/openclaw.json";
+const MODELS_FILE = process.env.OPENCLAW_MODELS_PATH || "/app/config/models.json";
+
+// Load shared model registry (models.json) — source of truth for model IDs and providers
+let modelRegistry = { version: 1, defaultModel: "gemini-3-flash-preview", models: [] };
+try {
+  modelRegistry = JSON.parse(fs.readFileSync(MODELS_FILE, "utf8"));
+  console.log(`[configure] loaded model registry from ${MODELS_FILE} (${modelRegistry.models.length} models, default: ${modelRegistry.defaultModel})`);
+} catch (e) {
+  console.warn(`[configure] WARNING: could not load model registry from ${MODELS_FILE}: ${e.message}`);
+  console.warn("[configure] falling back to built-in model defaults");
+}
 
 console.log("[configure] state dir:", STATE_DIR);
 console.log("[configure] workspace dir:", WORKSPACE_DIR);
@@ -337,65 +348,49 @@ if (ollamaUrl) {
   removeProvider("ollama", "Ollama", "OLLAMA_BASE_URL");
 }
 
-// ── Primary model selection (first available provider wins) ─────────────────
-const primaryCandidates = [
-  [process.env.ANTHROPIC_API_KEY,      "anthropic/claude-haiku-4-5"],
-  [process.env.OPENAI_API_KEY,         "openai/gpt-5.4-mini"],
-  [process.env.OPENROUTER_API_KEY,     "openrouter/anthropic/claude-sonnet-4-6"],
-  [process.env.GEMINI_API_KEY,         "google/gemini-3.1-pro-preview"],
-  [opencodeKey,                        "opencode/claude-sonnet-4-5"],
-  [process.env.COPILOT_GITHUB_TOKEN,   "github-copilot/claude-sonnet-4-5"],
-  [process.env.XAI_API_KEY,            "xai/grok-3"],
-  [process.env.GROQ_API_KEY,           "groq/llama-3.3-70b-versatile"],
-  [process.env.MISTRAL_API_KEY,        "mistral/mistral-large-latest"],
-  [process.env.CEREBRAS_API_KEY,       "cerebras/llama-3.3-70b"],
-  [process.env.VENICE_API_KEY,         "venice/llama-3.3-70b"],
-  [process.env.MOONSHOT_API_KEY,       "moonshot/kimi-k2.5"],
-  [process.env.KIMI_API_KEY,           "kimi-coding/k2p5"],
-  [process.env.MINIMAX_API_KEY,        "minimax/MiniMax-M2.1"],
-  [process.env.SYNTHETIC_API_KEY,      "synthetic/hf:MiniMaxAI/MiniMax-M2.1"],
-  [process.env.ZAI_API_KEY,            "zai/glm-4.7"],
-  [process.env.AI_GATEWAY_API_KEY,     "vercel-ai-gateway/anthropic/claude-sonnet-4-5"],
-  [process.env.XIAOMI_API_KEY,         "xiaomi/mimo-v2-flash"],
-  [process.env.AWS_ACCESS_KEY_ID,      "amazon-bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0"],
-  [ollamaUrl,                          "ollama/llama3.3"],
-];
+// ── Primary model selection — driven by models.json registry ────────────────
+// Map provider names to the env var that holds their API key
+const PROVIDER_ENV = {
+  anthropic: process.env.ANTHROPIC_API_KEY,
+  openai:    process.env.OPENAI_API_KEY,
+  google:    process.env.GEMINI_API_KEY,
+};
+
+function registryModelToGatewayId(m) {
+  // Gateway expects "provider/apiModel" format, e.g. "google/gemini-3-flash-preview"
+  return `${m.provider}/${m.apiModel}`;
+}
+
 if (process.env.OPENCLAW_PRIMARY_MODEL) {
-  // Explicit env var override
+  // Explicit env var override — always respected
   config.agents.defaults.model.primary = process.env.OPENCLAW_PRIMARY_MODEL;
   console.log(`[configure] primary model (override): ${process.env.OPENCLAW_PRIMARY_MODEL}`);
 } else {
+  // Use models.json registry to select primary model
   // Always auto-select — never keep a stale persisted primary model
-  // (stale entries point to models that no longer exist and cause fallback chaos)
   delete config.agents.defaults.model.primary;
-  for (const [key, model] of primaryCandidates) {
-    if (key) {
-      config.agents.defaults.model.primary = model;
-      console.log(`[configure] primary model (auto): ${model}`);
+
+  // Try defaultModel first, then fall through the list in order
+  const orderedModels = [
+    modelRegistry.models.find(m => m.id === modelRegistry.defaultModel),
+    ...modelRegistry.models.filter(m => m.id !== modelRegistry.defaultModel),
+  ].filter(Boolean);
+
+  for (const m of orderedModels) {
+    if (PROVIDER_ENV[m.provider]) {
+      config.agents.defaults.model.primary = registryModelToGatewayId(m);
+      console.log(`[configure] primary model (from registry): ${config.agents.defaults.model.primary}`);
       break;
     }
   }
+
+  if (!config.agents.defaults.model.primary) {
+    console.warn("[configure] WARNING: no primary model selected — no matching API key found for any registry model");
+  }
 }
 
-// ── Model catalog ────────────────────────────────────────────────────────────
-const MODEL_CATALOG = [
-  // ── Anthropic ──────────────────────────────────────────────────────────────
-  { id: "anthropic/claude-sonnet-4-6",            label: "sonnet 4.6 $3/$15"             },
-  { id: "anthropic/claude-haiku-4-5",             label: "haiku 4.5 $1/$5"               },
-
-  // ── OpenAI ─────────────────────────────────────────────────────────────────
-  { id: "openai/gpt-5.4",                         label: "gpt 5.4 $2.50/$15"             },
-  { id: "openai/gpt-5.4-mini",                    label: "gpt 5.4 mini $0.75/$4.50"      },
-  { id: "openai/gpt-5.4-nano",                    label: "gpt 5.4 nano $0.20/$1.25"      },
-
-  // ── Google ─────────────────────────────────────────────────────────────────
-  { id: "google/gemini-3.1-pro-preview",          label: "gem 3.2 pro $2/$12"            },
-  { id: "google/gemini-3-flash-preview",          label: "gem 3 flash $0.50/$3"          },
-  { id: "google/gemini-3.1-flash-lite-preview",   label: "gem 3.1 flash lite $0.25/$1.50"},
-  { id: "google/gemini-3.1-flash-image-preview",  label: "gem 3.1 flash image $0.50/$60" },
-];
-
-config.agents.defaults.model.fallbacks = [];
+// ── Model fallbacks — all registry models ────────────────────────────────────
+config.agents.defaults.model.fallbacks = modelRegistry.models.map(registryModelToGatewayId);
 
 // ── Model health probe (async, runs after gateway starts) ───────────────────
 // Tests each model with a tiny API call, writes results to model-health.json.
