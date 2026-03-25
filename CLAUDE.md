@@ -1,5 +1,20 @@
 # Moltbot — OpenClaw Docker Build
 
+## Workspace ↔ Deployed App Mapping
+
+- **Source code (edit here):** `/home/user/openclaw/`
+- **Deployed app (Coolify):** `/coolapps/openclaw/` (symlink → `/data/coolify/applications/d3yvnhvbcktz2kkov3mlyoh6/`)
+  - Live config: `/coolapps/openclaw/data/openclaw.json`
+  - docker-compose: `/coolapps/openclaw/docker-compose.yml`
+  - Logs: `docker logs <container>` or via Coolify UI at `https://coolify.designflow.app`
+- **Coolify App UUID:** `d3yvnhvbcktz2kkov3mlyoh6`
+- **Public URL:** `https://claw.designflow.app`
+
+When debugging or checking running config, look in `/coolapps/openclaw/`. When editing code, work in `/home/user/openclaw/` and push to GitHub (`u2giants/openclaw`, branch `main`).
+
+---
+
+
 ## Gateway env vars
 
 ### `OPENCLAW_PRIMARY_MODEL` (optional string)
