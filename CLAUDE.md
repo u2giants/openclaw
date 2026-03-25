@@ -1,16 +1,17 @@
-# Moltbot — OpenClaw Docker Build
+# OpenClaw Gateway
 
 ## Workspace ↔ Deployed App Mapping
 
-- **Source code (edit here):** `/home/user/openclaw/`
-- **Deployed app (Coolify):** `/coolapps/openclaw/` (symlink → `/data/coolify/applications/d3yvnhvbcktz2kkov3mlyoh6/`)
-  - Live config: `/coolapps/openclaw/data/openclaw.json`
-  - docker-compose: `/coolapps/openclaw/docker-compose.yml`
+- **Source code (edit here):** `/worksp/openclaw/ocgate/`
+- **Deployed app (Coolify):** `/coolapps/ocgate/` (symlink → `/data/coolify/applications/d3yvnhvbcktz2kkov3mlyoh6/`)
+  - Live config: `/coolapps/ocgate/data/openclaw.json`
+  - docker-compose: `/coolapps/ocgate/docker-compose.yml`
   - Logs: `docker logs <container>` or via Coolify UI at `https://coolify.designflow.app`
 - **Coolify App UUID:** `d3yvnhvbcktz2kkov3mlyoh6`
 - **Public URL:** `https://claw.designflow.app`
 
-When debugging or checking running config, look in `/coolapps/openclaw/`. When editing code, work in `/home/user/openclaw/` and push to GitHub (`u2giants/openclaw`, branch `main`).
+When debugging or checking running config, look in `/coolapps/ocgate/`. When editing code, work in `/worksp/openclaw/ocgate/` and push to GitHub (`u2giants/openclaw`, branch `main`).
+Claude handles all git: direct commits to main, no PRs, no branches.
 
 ---
 
@@ -177,31 +178,20 @@ When changing env vars, configure.js, or project structure, also update `README.
 
 ## Mission Control Integration
 
-Mission Control (`u2giants/mission-control`) is a **separate Coolify app** but shares the `openclaw-net` Docker network so it can reach the openclaw gateway internally without going through Cloudflare.
+Mission Control (`u2giants/mission-control`) is a **separate Coolify app**. It calls the gateway via the public URL to avoid Docker network complexity.
 
-**Internal gateway URL** (from Mission Control container): `http://openclaw:8080`
+**Gateway URL** (from Mission Control): `https://claw.designflow.app` (public URL, HTTP Basic Auth)
 **Mission Control public URL**: `https://mc.designflow.app`
-**Mission Control source**: `/home/user/mission-control/`
-**Mission Control symlink**: `/coolapps/openclawmc/` → `/data/coolify/applications/<mc-uuid>/`
-
-### Shared Docker network
-
-Both compose stacks join the external `openclaw-net` network (defined as `external: true` in both `docker-compose.yml` files). Create it once on the host:
-```bash
-docker network create openclaw-net
-```
-After that, both stacks auto-attach on deploy. Mission Control talks to the openclaw gateway at `http://openclaw:8080`.
+**Mission Control source**: `/worksp/openclaw/ocmc/`
+**Mission Control symlink**: `/coolapps/ocmc/`
 
 ### Architecture decisions
 
-- **Separate containers**: openclaw is a black box (upstream image, never edited); Mission Control is our custom app with its own code and deploy cycle
-- **Shared network**: avoids routing through Cloudflare for internal API calls; gateway is reachable at `http://openclaw:8080`
-- **Default model everywhere**: `google/gemini-3-flash-preview`
+- **Separate containers, separate deploy cycles**: gateway is upstream code we rarely touch; MC is our app
+- **No custom Docker networks**: MC calls gateway via public URL — zero networking config, survives redeploys
+- **Shared models.json**: both apps use `config/models.json` as single source of truth for model IDs/pricing
+- **Default model everywhere**: `gemini-3-flash-preview` (from registry defaultModel)
 - **Auth username everywhere**: `ahazan` (never `admin`)
-- **Intuitive symlinks**: Coolify UUIDs are auto-generated and opaque — `entrypoint.sh` creates human-readable symlinks under `/coolapps/`:
-  - `/coolapps/openclaw/` → openclaw app (already done)
-  - `/coolapps/openclawmc/` → Mission Control
-  - `/coolapps/ocagent1/`, `/coolapps/ocagent2/` etc → per-agent containers (if spawned as separate containers)
 
 ### Agent lifecycle (owned by Mission Control)
 
