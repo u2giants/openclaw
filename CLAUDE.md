@@ -2,7 +2,7 @@
 
 ## Workspace ↔ Deployed App Mapping
 
-- **Source code (edit here):** `/home/user/openclaw/`
+- **Source code (edit here):** `/home/user/moltbot/openclaw/`
 - **Deployed app (Coolify):** `/coolapps/openclaw/` (symlink → `/data/coolify/applications/d3yvnhvbcktz2kkov3mlyoh6/`)
   - Live config: `/coolapps/openclaw/data/openclaw.json`
   - docker-compose: `/coolapps/openclaw/docker-compose.yml`
@@ -10,7 +10,7 @@
 - **Coolify App UUID:** `d3yvnhvbcktz2kkov3mlyoh6`
 - **Public URL:** `https://claw.designflow.app`
 
-When debugging or checking running config, look in `/coolapps/openclaw/`. When editing code, work in `/home/user/openclaw/` and push to GitHub (`u2giants/openclaw`, branch `main`).
+When debugging or checking running config, look in `/coolapps/openclaw/`. When editing code, work in `/home/user/moltbot/openclaw/` and push to GitHub (`u2giants/openclaw`, branch `main`).
 
 ---
 
@@ -181,7 +181,7 @@ Mission Control (`u2giants/mission-control`) is a **separate Coolify app** but s
 
 **Internal gateway URL** (from Mission Control container): `http://openclaw:8080`
 **Mission Control public URL**: `https://mc.designflow.app`
-**Mission Control source**: `/home/user/mission-control/`
+**Mission Control source**: `/home/user/moltbot/mission-control/`
 **Mission Control symlink**: `/coolapps/openclawmc/` → `/data/coolify/applications/<mc-uuid>/`
 
 ### Shared Docker network
