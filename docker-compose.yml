@@ -28,10 +28,6 @@ services:
     depends_on:
       - browser
     restart: unless-stopped
-    networks:
-      - default
-      - openclaw-net
-
   browser:
     image: coollabsio/openclaw-browser:latest
     environment:
@@ -59,6 +55,3 @@ volumes:
 
 networks:
   default: {}
-  openclaw-net:
-    external: true
-    name: openclaw-net
