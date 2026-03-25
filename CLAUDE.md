@@ -172,3 +172,39 @@ Docs: https://docs.openclaw.ai/channels/whatsapp
 ## Keeping docs in sync
 
 When changing env vars, configure.js, or project structure, also update `README.md` (architecture overview + full env var reference table).
+
+---
+
+## Mission Control Integration
+
+Mission Control (`u2giants/mission-control`) is a **separate Coolify app** but shares the `openclaw-net` Docker network so it can reach the openclaw gateway internally without going through Cloudflare.
+
+**Internal gateway URL** (from Mission Control container): `http://openclaw:8080`
+**Mission Control public URL**: `https://mc.designflow.app`
+**Mission Control source**: `/home/user/mission-control/`
+**Mission Control symlink**: `/coolapps/openclawmc/` → `/data/coolify/applications/<mc-uuid>/`
+
+### Shared Docker network
+
+Both compose stacks join the external `openclaw-net` network (defined as `external: true` in both `docker-compose.yml` files). Create it once on the host:
+```bash
+docker network create openclaw-net
+```
+After that, both stacks auto-attach on deploy. Mission Control talks to the openclaw gateway at `http://openclaw:8080`.
+
+### Architecture decisions
+
+- **Separate containers**: openclaw is a black box (upstream image, never edited); Mission Control is our custom app with its own code and deploy cycle
+- **Shared network**: avoids routing through Cloudflare for internal API calls; gateway is reachable at `http://openclaw:8080`
+- **Default model everywhere**: `google/gemini-3-flash-preview`
+- **Auth username everywhere**: `ahazan` (never `admin`)
+- **Intuitive symlinks**: Coolify UUIDs are auto-generated and opaque — `entrypoint.sh` creates human-readable symlinks under `/coolapps/`:
+  - `/coolapps/openclaw/` → openclaw app (already done)
+  - `/coolapps/openclawmc/` → Mission Control
+  - `/coolapps/ocagent1/`, `/coolapps/ocagent2/` etc → per-agent containers (if spawned as separate containers)
+
+### Agent lifecycle (owned by Mission Control)
+
+- New agents are **created, configured, and managed entirely from the Mission Control UI**
+- Each agent's "soul" (system prompt, personality, tool access, model) is a `.md` file stored in `/data/mc-agents/<agent-id>.md` and edited through the Mission Control UI — never manually on the server
+- Mission Control pushes agent configs to the openclaw gateway via the internal API at `http://openclaw:8080`

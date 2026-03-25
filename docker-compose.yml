@@ -10,7 +10,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - OPENCLAW_PAIR_APPROVE=${OPENCLAW_PAIR_APPROVE}
-      - AUTH_USERNAME=${AUTH_USERNAME:-admin}
+      - AUTH_USERNAME=${AUTH_USERNAME:-ahazan}
       - AUTH_PASSWORD=${AUTH_PASSWORD}
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
       - GATEWAY_ALLOWED_ORIGINS=${GATEWAY_ALLOWED_ORIGINS}
@@ -28,6 +28,9 @@ services:
     depends_on:
       - browser
     restart: unless-stopped
+    networks:
+      - default
+      - openclaw-net
 
   browser:
     image: coollabsio/openclaw-browser:latest
@@ -53,3 +56,9 @@ services:
 volumes:
   openclaw-data:
   browser-data:
+
+networks:
+  default: {}
+  openclaw-net:
+    external: true
+    name: openclaw-net
