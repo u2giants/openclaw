@@ -3,14 +3,15 @@
 ## Workspace ↔ Deployed App Mapping
 
 - **Source code (edit here):** `/worksp/openclaw/ocgate/`
-- **Deployed app (Coolify):** `/coolapps/ocgate/` (symlink → `/data/coolify/applications/d3yvnhvbcktz2kkov3mlyoh6/`)
-  - Live config: `/coolapps/ocgate/data/openclaw.json`
-  - docker-compose: `/coolapps/ocgate/docker-compose.yml`
-  - Logs: `docker logs <container>` or via Coolify UI at `https://coolify.designflow.app`
-- **Coolify App UUID:** `d3yvnhvbcktz2kkov3mlyoh6`
+- **Deployed app (Coolify):** Coolify pulls from GitHub and runs docker-compose from the workspace directly — source and deployed are the same directory.
+  - Coolify App UUID: `yxz0hmaien0bgn0sv64g8q3p`
+  - Coolify app data dir: `/data/coolify/applications/yxz0hmaien0bgn0sv64g8q3p/` (mostly empty — runtime state is in Docker volumes)
+  - Live config: `sudo docker exec ocgate-openclaw-1 cat /data/.openclaw/openclaw.json`
+  - docker-compose: `/worksp/openclaw/ocgate/docker-compose.yml`
+  - Logs: `sudo docker logs ocgate-openclaw-1` or via Coolify UI at `https://coolify.designflow.app`
 - **Public URL:** `https://claw.designflow.app`
 
-When debugging or checking running config, look in `/coolapps/ocgate/`. When editing code, work in `/worksp/openclaw/ocgate/` and push to GitHub (`u2giants/openclaw`, branch `main`).
+When debugging or checking running config, use `sudo docker exec/logs ocgate-openclaw-1`. When editing code, work in `/worksp/openclaw/ocgate/` and push to GitHub (`u2giants/openclaw`, branch `main`).
 Claude handles all git: direct commits to main, no PRs, no branches.
 
 ---
