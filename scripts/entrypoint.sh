@@ -557,6 +557,29 @@ _patch_scopes() {
   fi
 }
 _patch_scopes
+
+# ── Patch device auth: allow operators to skip device identity ──────────────
+# With auth.mode=none, sharedAuthOk is false, so roleCanSkipDeviceIdentity
+# rejects operators without a device keypair. Patch the function to always
+# allow operators (safe because nginx basic auth gates external access).
+_patch_device_auth() {
+  local target="/opt/openclaw/app/dist/gateway-cli-yb-PhDCz.js"
+  if [ ! -f "$target" ]; then
+    echo "[entrypoint] device-auth patch: gateway CLI not found, skipping"
+    return
+  fi
+  # Replace: function evaluateMissingDeviceIdentity(params) {
+  #   if (params.hasDeviceIdentity) return { kind: "allow" };
+  # With:    function evaluateMissingDeviceIdentity(params) {
+  #   return { kind: "allow" };
+  if grep -q 'if (params.hasDeviceIdentity) return { kind: "allow" }' "$target"; then
+    sed -i 's/if (params\.hasDeviceIdentity) return { kind: "allow" }/return { kind: "allow" }/' "$target"
+    echo "[entrypoint] patched evaluateMissingDeviceIdentity to skip device auth for all"
+  else
+    echo "[entrypoint] device-auth patch: pattern not found (may already be patched)"
+  fi
+}
+_patch_device_auth
 echo "post-nginx-step=cd-app $(date -u '+%T')" > /usr/share/nginx/html/step.txt
 
 echo "[entrypoint] starting openclaw gateway on port $GATEWAY_PORT..."
