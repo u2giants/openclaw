@@ -45,14 +45,16 @@ Multiple origins: `GATEWAY_ALLOWED_ORIGINS=https://claw.designflow.app,https://o
 
 ### `DOCKER_HOST` (optional string)
 
-When set (or when `/var/run/docker.sock` is bind-mounted), `entrypoint.sh` auto-installs the Docker CLI (`docker.io` via apt) on first start and ensures the socket is accessible. Default: `unix:///var/run/docker.sock`.
+When set (or when `/var/run/docker.sock` is bind-mounted), `entrypoint.sh` auto-installs the Docker CLI (`docker.io` via apt) on first start and sets socket permissions to `chmod 666`. Default: `unix:///var/run/docker.sock`.
 
-Handled entirely in `entrypoint.sh` — no `configure.js` mapping needed (Docker API access is not an openclaw gateway config option; it's a host-level capability for agent tools).
+Handled entirely in `entrypoint.sh` (lines 65-84) — no `configure.js` mapping needed (Docker API access is not an openclaw gateway config option; it's a host-level capability for agent tools).
 
 To enable: uncomment the socket mount in `docker-compose.yml`:
 ```yaml
 - /var/run/docker.sock:/var/run/docker.sock
 ```
+
+**Security model:** Disabled by default. When enabled, agents get full `docker` CLI access (root-equivalent on host). No capability restrictions, no seccomp/AppArmor profiles, no user namespace isolation, no per-agent sandboxing. See README.md § "Docker API access" for full security analysis and mitigation recommendations.
 
 ---
 
@@ -74,12 +76,21 @@ Maps to `gateway.auth.mode` in `openclaw.json`. When set to `none`, the `OPENCLA
 
 ---
 
-## Channel env var pattern
+## Channel vs Provider configuration model
 
-Each channel in `scripts/configure.js` maps `CHANNEL_*` env vars → `channels.<name>.*` in `openclaw.json`.
+**Providers** (`models.providers`) are AI model backends. Built-in providers (Anthropic, OpenAI, etc.) need no JSON — openclaw knows them natively. `configure.js` only checks the env var exists. If removed, stale provider entries are **deleted** from persisted config. Custom providers (Venice, Moonshot, etc.) are fully written when env var is present, fully removed when absent.
+
+**Channels** (`channels.<name>`) are user messaging platforms. They carry complex nested state (group allowlists, guild policies) that can't be expressed as flat env vars, so they live in custom JSON.
+
+**Why different merge strategies:** Providers are stateless config (just an API key and optional base URL), so clean delete/recreate is safe. Channels accumulate runtime state and complex nested config, so merge-and-preserve is safer.
+
+### Merge rules in `configure.js`
 
 - **Telegram/Discord/Slack**: merge — `config.channels.X = config.channels.X || {}` (env vars override individual keys, custom JSON keys preserved)
-- **WhatsApp**: full overwrite — `config.channels.whatsapp = {}` (env vars are authoritative, custom JSON whatsapp block is discarded when WHATSAPP_ENABLED=true)
+- **WhatsApp**: full overwrite — `config.channels.whatsapp = {}` (env vars are authoritative, custom JSON whatsapp block is discarded when WHATSAPP_ENABLED=true). WhatsApp uses overwrite because it was added later with a simpler, fully env-var-driven model and runtime QR/pairing auth.
+- **Providers**: delete when env var removed, never merge from JSON for built-in providers
+
+See README.md § "Channels vs Providers: configuration model" for the full explanation.
 
 ### Telegram env vars (20 total)
 
@@ -148,6 +159,8 @@ Booleans: `BROWSER_EVALUATE_ENABLED`
 Numbers: `BROWSER_REMOTE_TIMEOUT_MS`, `BROWSER_REMOTE_HANDSHAKE_TIMEOUT_MS`
 
 Merge behavior: same as Telegram/Discord/Slack (merge, custom JSON keys preserved).
+
+**What the CDP proxy does:** The browser sidecar (`coollabsio/openclaw-browser`, built from `Dockerfile.browser`) runs Chromium with CDP exposed on port 9222. An nginx proxy on port 9223 rewrites the `Host` header to `localhost` (Chrome rejects CDP WebSocket connections from non-localhost hosts). Agents connect via `http://browser:9223` to navigate pages, take screenshots, fill forms, and reuse sessions that a human logged into via the noVNC web UI at `/browser/`. See README.md § "Browser tool" for full architecture.
 
 Docs: https://docs.openclaw.ai/tools/browser
 

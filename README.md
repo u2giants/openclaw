@@ -193,18 +193,47 @@ When hooks are enabled and `AUTH_PASSWORD` is set, the hooks path automatically 
 | `BROWSER_REMOTE_HANDSHAKE_TIMEOUT_MS` | `3000` | WebSocket handshake timeout in ms for remote CDP. |
 | `BROWSER_DEFAULT_PROFILE` | | Override the default browser profile name. |
 
-Requires a separate browser container connected via Docker networking. Recommended: `kasmweb/chrome` (full Chrome desktop via noVNC on `:6901`, CDP on `:9222`). Docs: https://docs.openclaw.ai/tools/browser
+Requires a separate browser container connected via Docker networking. The `docker-compose.yml` includes a `browser` service (`coollabsio/openclaw-browser:latest`) built from `Dockerfile.browser`. Docs: https://docs.openclaw.ai/tools/browser
+
+#### What the browser CDP proxy does
+
+The browser sidecar gives agents a **real Chromium browser** they can control programmatically via the Chrome DevTools Protocol (CDP). This enables agents to:
+
+- Navigate to websites, fill forms, click buttons
+- Take screenshots and DOM snapshots for visual understanding
+- Execute JavaScript in page context (when `BROWSER_EVALUATE_ENABLED=true`)
+- Reuse authenticated sessions — a human logs in once via VNC, and agents inherit the cookies/session
+
+**Architecture:**
+
+```
+Agent tool call → openclaw gateway → CDP URL (http://browser:9223)
+                                         ↓
+                                    nginx proxy (rewrites Host → localhost)
+                                         ↓
+                                    Chromium CDP server (:9222)
+```
+
+The nginx proxy layer inside the browser sidecar (`Dockerfile.browser`) exists because Chrome's CDP WebSocket rejects connections where the `Host` header isn't `localhost`. The proxy on port 9223 rewrites the Host header so remote connections work over Docker networking.
+
+#### Port mapping
+
+| Port | Service | Purpose |
+|------|---------|---------|
+| 9222 | Chromium CDP | Internal debugging protocol (localhost only) |
+| 9223 | nginx proxy | External CDP endpoint (Host header rewrite for remote access) |
+| 3000 | noVNC web UI | Browser desktop for human login (accessible at `/browser/` through main nginx) |
 
 #### Browser login (VNC sidecar)
 
-For sites requiring authentication, use `kasmweb/chrome` so you can log in manually via a web-based desktop. Openclaw reuses the authenticated session via CDP.
+For sites requiring authentication, use the browser sidecar's VNC interface so you can log in manually via a web-based desktop. Openclaw reuses the authenticated session via CDP.
 
-1. Open `https://<host>:6901` — full Chrome desktop via noVNC
+1. Open `http://localhost:8080/browser/` — browser desktop via noVNC (proxied through main nginx)
 2. Navigate to the target site, log in manually (handles captchas, 2FA, OAuth)
-3. Sessions persist in a mounted volume across restarts
-4. Set `BROWSER_CDP_URL=http://browser:9222` — openclaw connects via CDP
+3. Sessions persist in the `browser-data` volume across restarts
+4. Agents connect via `BROWSER_CDP_URL=http://browser:9223` and inherit the session
 
-Mount a persistent volume at the sidecar's profile directory (`/home/kasm-user`) so cookies and sessions survive container restarts. The sidecar may need `CHROME_ARGS=--remote-debugging-port=9222 --remote-debugging-address=0.0.0.0` to expose CDP. Docs: https://docs.openclaw.ai/tools/browser-login
+The browser sidecar uses `linuxserver/chromium` with 2GB shared memory (`shm_size: 2g`) for Chromium rendering. Profile data persists in the `browser-data` Docker volume. Docs: https://docs.openclaw.ai/tools/browser-login
 
 ### Channels (optional)
 
@@ -330,9 +359,35 @@ volumes:
   - /var/run/docker.sock:/var/run/docker.sock
 ```
 
-No env var changes needed — the socket path is auto-detected. On first start, the Docker CLI (`docker.io`) is installed via apt and the socket is made accessible.
+No env var changes needed — the socket path is auto-detected. On first start, the Docker CLI (`docker.io`) is installed via apt and the socket permissions are set to 666 (world-readable/writable).
 
-> **Security note:** Mounting the Docker socket gives openclaw agents root-equivalent access to the host. Only enable this when you trust the agents and need container management capabilities.
+#### Agent capabilities when Docker socket is mounted
+
+Agents gain **full Docker CLI access** — the same as running `docker` as root on the host. This includes:
+
+- `docker ps`, `docker logs`, `docker inspect` — observe all containers on the host
+- `docker run`, `docker exec` — launch new containers or exec into existing ones
+- `docker build`, `docker pull`, `docker push` — build and distribute images
+- `docker volume`, `docker network` — manage storage and networking
+- `docker run --privileged`, `docker run -v /:/host` — potential privilege escalation vectors
+
+#### Container escape risk
+
+> **Security note:** Mounting the Docker socket gives openclaw agents **root-equivalent access to the host**. This is inherent to Docker socket access and is not specific to openclaw.
+
+**What is NOT mitigated:**
+- No `cap_drop` or capability restrictions in docker-compose.yml
+- No seccomp or AppArmor profiles applied to the container
+- No user namespace remapping (`--userns-remap`)
+- No per-agent sandboxing — all agents share the same root-level Docker access
+- The socket is set to `chmod 666` (any process in the container can use it)
+
+**What provides some protection:**
+- The socket mount is **disabled by default** (commented out in docker-compose.yml)
+- The gateway process binds to loopback only (`gateway.bind=loopback`), so agents cannot bypass nginx auth to reach other services
+- Config files are restricted to owner-only permissions (`chmod 600`)
+
+**Recommendation:** Only enable Docker socket access when you trust the agents running in this instance and specifically need container management capabilities. For production deployments, consider running agents in a separate, more restricted container with a Docker API proxy (e.g. Tecnativa/docker-socket-proxy) that limits which Docker API endpoints are accessible.
 
 ### Extra system packages (optional)
 
@@ -371,6 +426,36 @@ Note: packages installed at runtime (e.g. via `brew install`) are part of the co
 | `COOLIFY_FQDN` | Public FQDN assigned by Coolify. |
 | `COOLIFY_URL` | Coolify dashboard URL. |
 | `COOLIFY_BRANCH` | Git branch deployed. |
+
+## Channels vs Providers: configuration model
+
+Channels and providers serve different roles and follow different merge strategies in `configure.js`.
+
+### What they are
+
+- **Providers** (`models.providers`) — AI model backends (Anthropic, OpenAI, Gemini, etc.). These define _where models come from_ and how to authenticate to them.
+- **Channels** (`channels.<name>`) — User-facing messaging platforms (Telegram, Discord, Slack, WhatsApp). These define _how users communicate_ with the agent.
+
+### Why they're configured differently
+
+**Providers use env vars exclusively and stale entries are cleaned up (overwrite/delete):**
+
+Built-in providers (Anthropic, OpenAI, Gemini, etc.) need no JSON config at all — openclaw already knows their base URLs, model catalogs, and API types. The only thing configure.js does is check that the env var is set. If a provider env var is removed, configure.js actively **deletes** any stale `models.providers.<name>` entry from the persisted config. This prevents ghost providers from routing requests to dead API keys.
+
+Custom/proxy providers (Venice, Moonshot, Bedrock, Ollama) are fully written to JSON when their env var is present, and fully removed when it isn't.
+
+**Channels use merge (except WhatsApp) because they have complex nested state:**
+
+Channels carry rich, deeply nested configuration that doesn't fit in flat env vars — group allowlists, per-guild mention policies, webhook presets, etc. These are configured in custom JSON (`my-openclaw.json`). Env vars override individual top-level keys, but the rest of the custom JSON structure is preserved.
+
+| Aspect | Providers | Channels (Telegram/Discord/Slack) | Channels (WhatsApp) |
+|--------|-----------|-----------------------------------|----------------------|
+| **Config source** | Env vars only | Env vars merge on top of custom JSON | Env vars fully overwrite |
+| **Missing env var** | Provider deleted from config | Channel preserved from JSON | Channel removed |
+| **Nested config** | N/A | JSON-only (`groups`, `guilds`) | JSON discarded when `WHATSAPP_ENABLED=true` |
+| **Crash recovery strip order** | Level 6 (custom providers) | Level 4 (all channels) | Level 4 |
+
+WhatsApp is the exception: when `WHATSAPP_ENABLED=true`, the entire `channels.whatsapp` block is rebuilt from env vars. This is because WhatsApp was added later and uses a simpler, fully env-var-driven configuration model. Its auth is also runtime-based (QR/pairing code), so there's less persistent state to preserve.
 
 ## Custom JSON config (Docker mount)
 
