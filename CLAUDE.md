@@ -14,39 +14,70 @@ OpenClaw is an upstream open-source AI agent gateway (not our code). It exposes 
 
 ## Deployment
 
-### How it runs
+### How it works (GitHub Actions → GHCR → Coolify)
 
-Managed by **Coolify** (at `https://coolify.designflow.app`, UUID `yxz0hmaien0bgn0sv64g8q3p`). Coolify clones `u2giants/openclaw` from GitHub into a temp `/artifacts/` directory and runs `docker compose up` from there — **not** from the workspace. This means:
+```
+push to main
+  → GitHub Actions: .github/workflows/publish-image.yml
+    → docker buildx build → ghcr.io/u2giants/openclaw:main (+ :sha-<commit>)
+    → POST Coolify API /api/v1/applications/yxz0hmaien0bgn0sv64g8q3p/start
+      → Coolify pulls ghcr.io/u2giants/openclaw:main
+      → docker compose up (from Coolify's /artifacts/ clone of the repo)
+```
 
-- **Code changes**: edit in `/worksp/openclaw/ocgate/`, push to GitHub, then trigger Deploy in Coolify UI
-- **`.env` values are irrelevant to Coolify** — Coolify uses its own env var store (configured in the UI). The `.env` file is only used for manual `docker compose` runs from the workspace.
-- **Coolify env vars must be kept in sync** with `.env` manually (see env var section below)
+**Code changes → push to main → done.** Coolify pulls the image built by GitHub Actions; it does not build from source itself.
+
+This is the same pattern as `ocmc` (`u2giants/mission-control`).
 
 ### Docker Compose services
 
 | Service | Image | Purpose |
 |---------|-------|---------|
-| `openclaw` | built from `Dockerfile` (based on `openclaw-base`) | Gateway: nginx + openclaw binary + configure.js |
+| `openclaw` | `ghcr.io/u2giants/openclaw:main` (built by GitHub Actions) | Gateway: nginx + openclaw binary + configure.js |
 | `browser` | `coollabsio/openclaw-browser:latest` | Chromium sidecar with CDP + noVNC for agent browser tool |
 | `cloudflared` | `cloudflare/cloudflared:latest` | Cloudflare Tunnel → `https://claw.designflow.app` |
+
+### GitHub Actions workflow
+
+File: `.github/workflows/publish-image.yml`
+
+Triggers on every push to `main` and on manual `workflow_dispatch`.
+
+Required GitHub secrets (repo Settings → Secrets → Actions):
+
+| Secret | Value |
+|--------|-------|
+| `COOLIFY_BASE_URL` | `https://coolify.designflow.app` |
+| `COOLIFY_API_TOKEN` | Coolify API token (same as `COOLIFY_TOKEN` in `ocmc/.env`) |
+
+`GITHUB_TOKEN` (automatic) is used to push to GHCR — no manual setup needed.
+
+### Coolify configuration
+
+Coolify UUID: `yxz0hmaien0bgn0sv64g8q3p`
+
+Coolify is configured as a **Docker Compose** deployment pointing at `u2giants/openclaw` branch `main`. It uses the `docker-compose.yml` from the repo, which pulls `image: ghcr.io/u2giants/openclaw:main` — Coolify does **not** build from source.
+
+Coolify has its **own env var store** (set in the UI). The `.env` file in this repo is a local mirror for manual `docker compose` runs only — keep them in sync when adding new vars.
 
 ### Container lifecycle
 
 ```bash
 # View logs
-sudo docker logs ocgate-openclaw-1
+sudo docker logs yxz0hmaien0bgn0sv64g8q3p-openclaw-1
 
 # Live config (inside container)
-sudo docker exec ocgate-openclaw-1 cat /data/.openclaw/openclaw.json
+sudo docker exec yxz0hmaien0bgn0sv64g8q3p-openclaw-1 cat /data/.openclaw/openclaw.json
 
-# Manual rebuild + restart (when Coolify deploy is broken)
-cd /worksp/openclaw/ocgate && sudo docker compose up -d --build
+# Manual run (uses .env, matches Coolify's project name — safe to run alongside Coolify)
+cd /worksp/openclaw/ocgate && sudo docker compose up -d
 
-# Stop everything
+# Stop everything (also stops cloudflared — takes down claw.designflow.app)
 cd /worksp/openclaw/ocgate && sudo docker compose down
+# Always restart immediately: sudo docker compose up -d
 ```
 
-> **Warning**: `docker compose down` stops the cloudflared tunnel too, taking down `claw.designflow.app`. Always `up -d` immediately after, or use Coolify to redeploy.
+> **Note**: `COMPOSE_PROJECT_NAME=yxz0hmaien0bgn0sv64g8q3p` in `.env` ensures manual `docker compose` reuses Coolify's project name and containers, preventing port conflicts.
 
 ### Startup sequence
 
@@ -184,14 +215,11 @@ Mission Control (`u2giants/mission-control`, at `https://mc.designflow.app`) is 
 
 ## Coolify deploy troubleshooting
 
-### Deploy fails: port already allocated
+### Workflow ran but Coolify deploy step failed
 
-Coolify creates containers under its own project name (UUID-based). If manual `docker compose up` containers are running on port 8081, Coolify's deploy will fail. Fix:
-
-```bash
-cd /worksp/openclaw/ocgate && sudo docker compose down
-# then retry Deploy in Coolify UI
-```
+Check that both GitHub secrets are set in `u2giants/openclaw` → Settings → Secrets → Actions:
+- `COOLIFY_BASE_URL` = `https://coolify.designflow.app`
+- `COOLIFY_API_TOKEN` = Coolify API token
 
 ### Deploy fails: git URL malformed
 
@@ -201,10 +229,14 @@ If Coolify's repository field contains a full URL like `https://github.com/u2gia
 
 Coolify may not pass `CLOUDFLARE_TUNNEL_TOKEN` from its env var store to the compose environment. Fix: ensure all required vars are set in **Coolify UI → ocgate → Environment Variables** (not just in `.env`).
 
-### Manual deploy (bypasses Coolify entirely)
+### Manual run alongside Coolify (safe)
+
+Because `.env` sets `COMPOSE_PROJECT_NAME=yxz0hmaien0bgn0sv64g8q3p`, manual `docker compose up` reuses Coolify's containers and project — no port conflict:
 
 ```bash
-cd /worksp/openclaw/ocgate && sudo docker compose up -d --build
+cd /worksp/openclaw/ocgate && sudo docker compose up -d
 ```
 
-This uses the local `.env` file directly and always works. Use this when Coolify deploy is broken.
+### History: why we switched from `build: .` to pre-built image
+
+Previously `docker-compose.yml` had `build: .`. Coolify clones the repo to `/artifacts/<uuid>/` and builds from there. Manual runs in the workspace built under project name `ocgate`. Both tried to bind port 8081 → "port already allocated" errors and split-brain state. The fix: build once in GitHub Actions, publish to GHCR, have both Coolify and manual runs pull the same pre-built image. `COMPOSE_PROJECT_NAME` ensures they share the same Docker project.
