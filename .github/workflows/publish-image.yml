@@ -1,0 +1,76 @@
+name: Publish Image
+
+# Builds the OpenClaw gateway Docker image and publishes it to GHCR.
+# After the image is published, Coolify is asked to redeploy so the new
+# image goes live and a deployment record appears in Coolify's history.
+#
+# Image naming
+# ------------
+# Immutable: ghcr.io/u2giants/openclaw:sha-<commit>
+# Moving:    ghcr.io/u2giants/openclaw:main
+#
+# Coolify app driven by this workflow
+# ------------------------------------
+# ocgate  uuid: yxz0hmaien0bgn0sv64g8q3p
+# Configured in Coolify as dockerimage build-pack pointing at
+# ghcr.io/u2giants/openclaw:main
+#
+# Required GitHub secrets (set in repo Settings → Secrets → Actions)
+# ------------------------------------------------------------------
+# COOLIFY_BASE_URL   https://coolify.designflow.app
+# COOLIFY_API_TOKEN  Coolify API token (same as in ocmc/.env COOLIFY_TOKEN)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/u2giants/openclaw
+  APP_UUID: yxz0hmaien0bgn0sv64g8q3p
+
+jobs:
+  build-and-publish:
+    name: Build and Publish Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: publish-image-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        run: |
+          echo "sha_tag=sha-${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.IMAGE_NAME }}:main
+            ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.sha_tag }}
+
+      - name: Trigger Coolify deploy
+        run: |
+          curl -fsSL -X GET \
+            "${{ secrets.COOLIFY_BASE_URL }}/api/v1/applications/${APP_UUID}/start" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
+            -H "Accept: application/json"
