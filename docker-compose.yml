@@ -8,6 +8,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - OPENCLAW_PAIR_APPROVE=${OPENCLAW_PAIR_APPROVE}
       - AUTH_USERNAME=${AUTH_USERNAME:-ahazan}
@@ -20,9 +21,10 @@ services:
       - BROWSER_EVALUATE_ENABLED=true
       - DOCKER_HOST=${DOCKER_HOST}
       - GATEWAY_AUTH_MODE=none
-      - OPENCLAW_PRIMARY_MODEL=${OPENCLAW_PRIMARY_MODEL:-google/gemini-3-flash-preview}
+      - OPENCLAW_PRIMARY_MODEL=${OPENCLAW_PRIMARY_MODEL:-openrouter/google/gemini-3-flash-preview}
       - WHATSAPP_ENABLED=true
       - OPENCLAW_DOCKER_INIT_SCRIPT=/data/.openclaw/patch.sh
+      - PAPERCLIP_API_URL=http://10.0.2.5:3100
     volumes:
       - openclaw-data:/data
       # Uncomment to give openclaw agents access to the Docker API:

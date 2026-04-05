@@ -23,9 +23,9 @@ Claude handles all git: direct commits to main, no PRs, no branches.
 
 Sets the default model shown in the UI and used for new agents. **This is the only way to make the default model stick** — editing `openclaw.json` directly is overwritten by `configure.js` on every container start.
 
-Example: `OPENCLAW_PRIMARY_MODEL=google/gemini-3-flash-preview`
+Example: `OPENCLAW_PRIMARY_MODEL=openrouter/google/gemini-3-flash-preview`
 
-Default in `docker-compose.yml`: `google/gemini-3-flash-preview`
+Default in `docker-compose.yml`: `openrouter/google/gemini-3-flash-preview`
 
 Maps to `agents.defaults.model.primary` in `openclaw.json`.
 
