@@ -2,6 +2,11 @@ ARG BASE_IMAGE=ghcr.io/coollabsio/openclaw-base:2026.3.23
 
 FROM ${BASE_IMAGE}
 
+ARG GIT_SHA=dev
+ARG BUILD_DATE=unknown
+ENV BUILD_GIT_SHA=${GIT_SHA} \
+    BUILD_DATE=${BUILD_DATE}
+
 ENV NODE_ENV=production
 
 RUN apt-get update \

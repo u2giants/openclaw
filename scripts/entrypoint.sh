@@ -183,6 +183,11 @@ AUTH_PASSWORD="${AUTH_PASSWORD:-}"
 AUTH_USERNAME="${AUTH_USERNAME:-admin}"
 NGINX_CONF="/etc/nginx/conf.d/openclaw.conf"
 
+# Version badge: inject git SHA + build date into every HTML page via sub_filter
+_GIT_SHA="${BUILD_GIT_SHA:-dev}"
+_BUILD_DATE="${BUILD_DATE:-unknown}"
+VERSION_BADGE_TEXT="gateway · ${_GIT_SHA} · ${_BUILD_DATE}"
+
 AUTH_BLOCK=""
 if [ -n "$AUTH_PASSWORD" ]; then
   echo "[entrypoint] setting up nginx basic auth (user: $AUTH_USERNAME)"
@@ -317,6 +322,10 @@ server {
 
         proxy_read_timeout 86400s;
         proxy_send_timeout 86400s;
+
+        proxy_set_header Accept-Encoding "";
+        sub_filter_once on;
+        sub_filter '</body>' '<div id="oc-version-badge" style="position:fixed;bottom:8px;right:8px;z-index:99999;background:rgba(0,0,0,0.65);color:#9fdfbf;font-family:monospace;font-size:11px;padding:3px 8px;border-radius:4px;pointer-events:none;letter-spacing:0.03em;">${VERSION_BADGE_TEXT}</div></body>';
 
         error_page 502 503 504 /starting.html;
     }
